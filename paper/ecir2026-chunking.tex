@@ -1,0 +1,103 @@
+% This is samplepaper.tex, a sample chapter demonstrating the
+% LLNCS macro package for Springer Computer Science proceedings;
+% Version 2.20 of 2017/10/04
+%
+\documentclass[runningheads]{llncs}
+%
+\let\proof\relax
+\let\endproof\relax
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amsfonts}
+\usepackage{color}
+\usepackage{multirow}
+\usepackage{tabularx,booktabs}
+\usepackage{xspace} 
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{enumitem}
+% Used for displaying a sample figure. If possible, figure files should
+% be included in EPS format.
+%
+% If you use the hyperref package, please uncomment the following line
+% to display URLs in blue roman font according to Springer's eBook style:
+% \renewcommand\UrlFont{\color{blue}\rmfamily}
+
+\newcommand{\todo}[1]{}
+\renewcommand{\todo}[1]{{\color{red}{#1}}}
+\newcommand{\xxx}{}
+\renewcommand{\xxx}{{\texttt{\color{red}{XXX}}}\xspace}
+
+\theoremstyle{definition}
+\newtheorem{observation}[theorem]{Observation}
+
+\begin{document}
+%
+\title{Seed-driven Document Ranking for Systematic Reviews: A Reproducibility Study}
+%
+\titlerunning{SDR for Systematic Reviews: A Reproducibility Study}
+% If the paper title is too long for the running head, you can set
+% an abbreviated paper title here
+%
+\author{Shuai Wang\orcidID{0000-0002-0726-5250} \and
+Harrisen Scells\orcidID{0000-0001-9578-7157} \and\\
+Ahmed Mourad\orcidID{0000-0002-9423-9404} \and
+Guido Zuccon\orcidID{0000-0003-0271-5563}}
+%
+%\authorrunning{F. Author et al.}
+% First names are abbreviated in the running head.
+% If there are more than two authors, 'et al.' is used.
+%
+\institute{The University of Queensland, St. Lucia, Australia
+	\email{\{shuai.wang2,h.scells,a.mourad,g.zuccon\}@uq.edu.au}}
+%Springer Heidelberg, Tiergartenstr. 17, 69121 Heidelberg, Germany
+%\email{lncs@springer.com}\\
+%\url{http://www.springer.com/gp/computer-science/lncs} \and
+%ABC Institute, Rupert-Karls-University Heidelberg, Heidelberg, Germany\\
+%\email{\{abc,lncs\}@uni-heidelberg.de}}
+%
+\maketitle              % typeset the header of the contribution
+%
+\begin{abstract}
+
+Screening or assessing studies is critical to the quality and outcomes of a systematic review. Typically, a Boolean query retrieves the set of studies to screen. As the set of studies retrieved is unordered, screening all retrieved studies is usually required for high-quality systematic reviews. 
+%Screening all of the unordered retrieved studies limits the pace at which downstream activities of a systematic review can begin, as finding all relevant studies might occur at the end of the screening process. 
+Screening prioritisation, or in other words, ranking the set of studies, enables downstream activities of a systematic review to begin in parallel.
+%
+We investigate a method that exploits seed studies -- potentially relevant studies used to seed the query formulation process -- for screening prioritisation. 
+%Seed studies are potentially relevant studies used to seed the query formulation process. 
+Our investigation aims to reproduce this method to determine if it is generalisable on recently published datasets and determine the impact of using multiple seed studies on effectiveness.
+%, two aspects that we believe warrant a follow-up investigation from the original paper.
+%
+We show that while we could reproduce the original methods, we could not replicate their results exactly. However, we believe this is due to minor differences in document pre-processing, not deficiencies with the original methodology.
+%
+Our results also indicate that our reproduced screening prioritisation method, (1) is generalisable across datasets of similar and different topicality compared to the original implementation, (2) that when using multiple seed studies, the effectiveness of the method increases using our techniques to enable this, (3) and that the use of multiple seed studies produces more stable rankings compared to single seed studies. Finally, we make our implementation and results publicly available at the following URL: \url{https://github.com/ielab/sdr}.
+
+\keywords{Systematic Reviews  \and Document Ranking \and Re-ranking.}
+\vspace{-12pt}
+\end{abstract}
+%
+%
+%
+\input{introduction}
+\input{methods}
+\input{experimental_setup}
+\input{results}
+\input{related_work}
+\input{conclusions}
+
+\section*{Acknowledgment}
+
+Shuai Wang is supported by a UQ Earmarked PhD Scholarship and this research is funded by the Australian Research Council Discovery Projects programme ARC DP DP210104043.
+%
+% ---- Bibliography ----
+%
+% BibTeX users should specify bibliography style 'splncs04'.
+% References will then be sorted and formatted in the correct style.
+%
+\bibliographystyle{splncs04}
+\bibliography{bibliography}
+\end{document}
+
