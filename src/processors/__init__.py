@@ -1,0 +1,3 @@
+from src.processors.base_processor import BaseProcessor
+from src.processors.qutenqa_processor import GutenQAProcessor
+from src.processors.beir_processor import BEIRProcessor
