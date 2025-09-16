@@ -15,14 +15,16 @@ class ParagraphChunker(BaseChunker):
                  **kwargs):
 
         self._sink = JsonlSink(chunk_sink_path) if chunk_sink_path else None
+        self._sample = kwargs.get("sample")
 
     def chunk(self, raw_docs: Iterable[Document]) -> List[Chunk]:
 
         chunks: List[Chunk] = []
 
-        for document in raw_docs:
+        if self._sample is not None:
+            raw_docs = raw_docs[:self._sample]
 
-            doc_id = document.doc_id.split('-Paragraph-')[0]
+        for document in raw_docs:
 
             paragraph_list = [x.strip() for x in document.text.split('\n') if x.strip() != '']
 
@@ -30,8 +32,7 @@ class ParagraphChunker(BaseChunker):
 
             for paragraph in paragraph_list:
                 chunk = Chunk(doc_id=document.doc_id,
-                              # chunk_id=f'Chunk-{next(chunk_counter)}',
-                              chunk_id=f'{doc_id}-Chunk-{next(chunk_counter)}',
+                              chunk_id=f'{document.doc_id}-Chunk-{next(chunk_counter)}',
                               text=paragraph)
 
                 chunks.append(chunk)

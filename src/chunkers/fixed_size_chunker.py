@@ -6,37 +6,46 @@ from src.types import Document, Chunk
 from src.registry import CHUNKER_REG
 from src.io.sink import JsonlSink
 from transformers import AutoTokenizer
+import tiktoken
 
 
 @CHUNKER_REG.register("FixedSizeChunker")
 class FixedSizeChunker(BaseChunker):
 
     def __init__(self,
-                 tokenizer_name: str,
+                 # tokenizer_name: str,
                  chunk_sink_path: str|None=None,
                  fixed_size:int=512,
-                 sample:int = None,
+                 **kwargs
                  ):
 
+        tokenizer_name = kwargs.get("tokenizer_name", 'Qwen/Qwen3-Embedding-0.6B')
+
+        # if tokenizer_name is not None:
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, trust_remote_code=True)
+        # else:
+        #     self.tokenizer = tiktoken.encoding_for_model("text-embedding-ada-002")
+
+
         self.chunk_sink_path = chunk_sink_path
         self.fixed_size = fixed_size
 
-        self._sink = JsonlSink(self.chunk_sink_path)
-        self._sample = sample
+        self._sink = JsonlSink(chunk_sink_path) if chunk_sink_path else None
+        self._sample = kwargs.get("sample")
 
 
     def chunk(self, raw_docs: Iterable[Document]):
 
 
         chunks = []
-        chunk_counter = count()
+
 
         if self._sample is not None:
             raw_docs = raw_docs[:self._sample]
 
         for document in raw_docs:
 
+            chunk_counter = count()
             tokens = self.tokenizer.encode_plus(
                 document.text,
                 return_offsets_mapping=True,

@@ -18,22 +18,18 @@ from transformers import AutoTokenizer
 class SemanticChunker(BaseChunker):
 
     def __init__(self,
-                 embedding_model_name: str='BAAI/bge-small-en',
                  chunk_sink_path: str|None=None,
-                 sample: int = None,
                  **kwargs):
 
-        self.embedding_model_name = embedding_model_name
-        self.embedding_model = None
         self.splitter = None
+        # self.kwargs = kwargs
 
-        if self.embedding_model_name is None:
-            self.embedding_model_name = 'BAAI/bge-small-en'
+        self.embedding_model_name = kwargs.get('embedding_model_name', 'BAAI/bge-small-en')
 
         self._setup_semantic_chunking()
 
-        self._sink = JsonlSink(chunk_sink_path)
-        self._sample = sample
+        self._sink = JsonlSink(chunk_sink_path) if chunk_sink_path else None
+        self._sample = kwargs.get('sample')
 
 
     def _setup_semantic_chunking(self):
@@ -54,13 +50,13 @@ class SemanticChunker(BaseChunker):
 
         chunks = []
 
-        chunk_counter = count()
-
         if self._sample is not None:
             raw_docs = raw_docs[:self._sample]
 
 
         for document in tqdm(raw_docs):
+
+            chunk_counter = count()
 
             nodes = [
                 (node.start_char_idx, node.end_char_idx)
