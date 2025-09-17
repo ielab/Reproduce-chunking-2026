@@ -15,7 +15,7 @@ class Qwen3EmbeddingModel(BaseEmbeddingModel):
     def __init__(self, model_name: str):
 
         self.model_name = model_name
-        self.emd_model = SentenceTransformer(model_name)
+        self.emb_model = SentenceTransformer(model_name)
 
         self.model = AutoModel.from_pretrained(model_name, trust_remote_code=True).eval()
 
@@ -71,10 +71,10 @@ class Qwen3EmbeddingModel(BaseEmbeddingModel):
 
         if task is None:
 
-            embeddings = self.emd_model.encode(texts)
+            embeddings = self.emb_model.encode(texts)
 
         else:
-            embeddings = self.emd_model.encode(texts, task=task)
+            embeddings = self.emb_model.encode(texts, task=task)
 
         return embeddings
 

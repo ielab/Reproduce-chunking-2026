@@ -17,14 +17,14 @@ class Chunk:
     text: str
     # start: int
     # end: int
-    meta: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 @dataclass
 class Embedding:
     doc_id: str
     chunk_id: str
     vector: List[float] | np.ndarray
-    meta: Dict[str, Any] = field(default_factory=dict)
+    # metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

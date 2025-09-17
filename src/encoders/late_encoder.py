@@ -1,8 +1,8 @@
 from typing import List, Dict, Tuple
+from collections import defaultdict
 
 from tqdm import tqdm
 import numpy as np
-
 from transformers import AutoTokenizer
 
 from src.types import Chunk, Embedding, Query, QueryEmbedding
@@ -17,19 +17,19 @@ from src.models.embedding.base_embedding import BaseEmbeddingModel
 class LateEncoder(BaseEncoder):
 
     def __init__(self,
-                 backend: str,
+                 backbone: str,
                  embed_sink_path,
-                 backend_kwargs: dict | None = None):
+                 backbone_kwargs: dict | None = None):
 
-        backend_cls = EMD_BACKBONE_REG.get(backend)
+        backbone_cls = EMD_BACKBONE_REG.get(backbone)
 
-        self.model: BaseEmbeddingModel = backend_cls(**(backend_kwargs or {}))
+        self.model: BaseEmbeddingModel = backbone_cls(**(backbone_kwargs or {}))
         self._sink = JsonlSink(embed_sink_path)
 
-        self.tokenizer = AutoTokenizer.from_pretrained(backend_kwargs.get('model_name'),
+        self.tokenizer = AutoTokenizer.from_pretrained(backbone_kwargs.get('model_name'),
                                                        trust_remote_code=True)
 
-        self.chunk_joint_symbol = backend_kwargs.get('chunk_joint_symbol', '\n')
+        self.chunk_joint_symbol = backbone_kwargs.get('chunk_joint_symbol', '\n')
 
     @staticmethod
     def _get_book_range(doc_id_list: List[str]) -> Dict[str, Dict[str, int]]:
@@ -38,6 +38,23 @@ class LateEncoder(BaseEncoder):
         :return:
         """
         return get_book_range(doc_id_list)
+
+    @staticmethod
+    def _get_document_range_by_doc_id(doc_id_list: List[str]) -> Dict[str, Dict[str, int]]:
+        """
+        For this method, we must ensure that chunks split from one document have the same doc id.
+        :param doc_id_list:
+        :return:
+        """
+
+        document_range = {}
+        for idx, doc_id in enumerate(doc_id_list):
+            if doc_id not in document_range:
+                document_range[doc_id] = {'start': idx, 'end': idx+1}
+            else:
+                document_range[doc_id]['end'] = idx + 1
+
+        return document_range
 
 
     def _get_chunk_span(self, text_list: List[str]) -> List[Tuple[int, int]]:
@@ -58,6 +75,11 @@ class LateEncoder(BaseEncoder):
         return chunk_spans
 
     def merge_chunks(self, text_list: List[str]) -> str:
+        """
+        merge chunks by doc_ids
+        :param text_list:
+        :return:
+        """
 
         return self.chunk_joint_symbol.join(text_list)
 
@@ -69,8 +91,9 @@ class LateEncoder(BaseEncoder):
 
 
 
-        doc_id_list = [c.doc_id for c in chunks][:10]
-        doc_range = self._get_book_range(doc_id_list)
+        doc_id_list = [c.doc_id for c in chunks]
+        # doc_range = self._get_book_range(doc_id_list)
+        doc_range = self._get_document_range_by_doc_id(doc_id_list)
         print(doc_range)
 
         for doc_id, position_idx in doc_range.items():
@@ -82,7 +105,7 @@ class LateEncoder(BaseEncoder):
 
             chunk_spans = self._get_chunk_span(doc_text)
 
-            assert len(chunks_sub) == len(doc_id_list)
+            assert len(chunks_sub) == len(chunks_sub)
 
             texts = self.merge_chunks(doc_text)
 

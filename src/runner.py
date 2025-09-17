@@ -5,7 +5,7 @@ import argparse
 from typing import List
 
 from src.types import Document, Chunk, Query
-from src.registry import PROCESSOR_REG, CHUNKER_REG, ENCODER_REG, EVAL_REG
+from src.registry import PROCESSOR_REG, CHUNKER_REG, ENCODER_REG, EVALUATOR_REG
 from src.processors import BaseProcessor
 from src.chunkers import BaseChunker
 from src.encoders import BaseEncoder
@@ -176,7 +176,7 @@ def cmd_encoder(args: argparse.Namespace):
             }
         }
 
-        query_path = f"{args.output}/{args.dataset_name}/queries/{args.query_run_id}/queries.jsonl"
+        query_path = f"{args.output_folder}/{args.dataset_name}/queries/{args.query_run_id}/queries.jsonl"
         queries = load_queries(query_path)
         encoder.encode_queries(queries=queries,
                                query_sink_path=query_embeddings_output_path,
@@ -218,7 +218,7 @@ def cmd_evaluator(args: argparse.Namespace):
     print("Load successfully!!!")
 
     # register
-    evaluator: BaseEvaluator = EVAL_REG.get(args.dataset_name)(scope=args.scope)
+    evaluator: BaseEvaluator = EVALUATOR_REG.get(args.dataset_name)(scope=args.scope)
 
     evaluator.evaluate(queries=queries,
                        query_embeddings=query_embs,
@@ -241,7 +241,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
     # chunk
-    pc = sub.add_parser('chunk', parents=[common], help='Run Chunker only')
+    pc = sub.add_parser('chunker', parents=[common], help='Run Chunker only')
     pc.add_argument('--processor_name', required=True)
     pc.add_argument('--dataset_name', required=True)
     pc.add_argument('--data_folder', required=True)
@@ -254,7 +254,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
     # embed
-    pe = sub.add_parser('embed', parents=[common], help='Run Encoder only')
+    pe = sub.add_parser('encoder', parents=[common], help='Run Encoder only')
     pe.add_argument('--dataset_name', required=True)
     pe.add_argument('--chunk_run_id', required=True)
     pe.add_argument("--encoder_name", required=True)
@@ -271,7 +271,7 @@ def build_parser() -> argparse.ArgumentParser:
     #       - query files, which contains 'contain must text'
     #       - chunk embeddings for similarity
     #       - query embeddings for similarity
-    peval = sub.add_parser('eval', help='Run evaluators only')
+    peval = sub.add_parser('evaluator', help='Run evaluators only')
     peval.add_argument('--chunk_run_id', required=True)
     peval.add_argument("--query_run_id", required=True)
     peval.add_argument("--chunk_embedding_run_id", required=True)

@@ -13,7 +13,9 @@ class JinaV3EmbeddingModel(BaseEmbeddingModel):
 
         self.model_name = model_name
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = SentenceTransformer(model_name, trust_remote_code=True)
+        self.emb_model = SentenceTransformer(model_name, trust_remote_code=True)
+
+        self.model = AutoModel.from_pretrained(model_name, trust_remote_code=True)
 
     @property
     def model_id(self) -> str:
@@ -25,10 +27,10 @@ class JinaV3EmbeddingModel(BaseEmbeddingModel):
 
         if task is None:
 
-            embeddings = self.model.encode(texts)
+            embeddings = self.emb_model.encode(texts)
 
         else:
-            embeddings = self.model.encode(texts, task=task)
+            embeddings = self.emb_model.encode(texts, task=task)
 
         return embeddings
 
@@ -41,6 +43,6 @@ class JinaV3EmbeddingModel(BaseEmbeddingModel):
             truncation=True
         )
 
-        outputs = self.model(**inputs).last_hidden_state
+        outputs = self.model(**inputs)
 
         return outputs
