@@ -7,14 +7,6 @@ from openai import OpenAI
 class BaseGenerator(ABC):
 
     @abstractmethod
-    def __init__(self,
-                 model_name,
-                 api_key: Optional[str] = None
-                 ):
-        pass
-
-
-    @abstractmethod
     def generate(self,
                  input_text: Union[str, List[str]],
                  temperature: float = 1.0):

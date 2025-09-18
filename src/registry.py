@@ -30,8 +30,9 @@ CHUNKER_REG = Registry()
 ENCODER_REG = Registry()
 
 # ------- Evaluation -------
-EVAL_REG = Registry()
-MATCHER_REG = Registry()
+EVALUATOR_REG = Registry()
 
 
 EMD_BACKBONE_REG = Registry()
+GENERATOR_REG = Registry()
+

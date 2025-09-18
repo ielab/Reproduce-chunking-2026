@@ -5,7 +5,7 @@ from tqdm import tqdm
 import numpy as np
 from transformers import AutoTokenizer
 
-from src.types import Chunk, Embedding, Query, QueryEmbedding
+from src.types import Chunk, ChunkEmbedding, Query, QueryEmbedding
 from src.encoders.base_encoder import BaseEncoder
 from src.registry import ENCODER_REG, EMD_BACKBONE_REG
 from src.io.sink import JsonlSink
@@ -124,7 +124,7 @@ class LateEncoder(BaseEncoder):
                 if isinstance(chunk_vector, np.ndarray):
                     chunk_vector = chunk_vector.tolist()
 
-                embedding = Embedding(
+                embedding = ChunkEmbedding(
                     doc_id=chunk.doc_id,
                     chunk_id=chunk.chunk_id,
                     vector=chunk_vector,

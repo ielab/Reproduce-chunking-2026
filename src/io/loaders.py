@@ -3,7 +3,7 @@ from typing import List, Generator
 from tqdm import tqdm
 import numpy as np
 
-from src.types import Chunk, Query, Embedding, QueryEmbedding
+from src.types import Chunk, Query, ChunkEmbedding, QueryEmbedding
 from src.io.jsonl_io import read_jsonl, read_jsonl_gz
 
 
@@ -29,7 +29,7 @@ def load_queries(path: str) -> List[Query]:
     return out
 
 
-def load_embeddings(path: str) -> Generator[Embedding]:
+def load_embeddings(path: str) -> Generator[ChunkEmbedding]:
 
     # out: List[Embedding] = []
 
@@ -41,7 +41,7 @@ def load_embeddings(path: str) -> Generator[Embedding]:
     for r in reader(path):
 
         # yield Embedding(**r)
-        yield Embedding(
+        yield ChunkEmbedding(
             doc_id=r['doc_id'],
             chunk_id=r['chunk_id'],
             vector=np.array(r['vector'])

@@ -3,7 +3,7 @@ from typing import List
 from tqdm import tqdm
 import numpy as np
 
-from src.types import Chunk, Embedding, Query, QueryEmbedding
+from src.types import Chunk, ChunkEmbedding, Query, QueryEmbedding
 from src.encoders.base_encoder import BaseEncoder
 from src.registry import ENCODER_REG, EMD_BACKBONE_REG
 from src.io.sink import JsonlSink, ParquetSink, JsonlZstSink
@@ -32,7 +32,7 @@ class RegularEncoder(BaseEncoder):
                batch_size: int=32,
                **kwargs):
 
-        output: List[Embedding] = []
+        output: List[ChunkEmbedding] = []
 
         call_kwargs = {}
         if self.backbone == 'JinaV3':
@@ -54,7 +54,7 @@ class RegularEncoder(BaseEncoder):
 
             for chunk, vec in zip(batch, vecs):
 
-                embedding = Embedding(
+                embedding = ChunkEmbedding(
                     doc_id=chunk.doc_id,
                     chunk_id=chunk.chunk_id,
                     vector=vec,
