@@ -13,13 +13,12 @@ import tiktoken
 class FixedSizeChunker(BaseChunker):
 
     def __init__(self,
-                 # tokenizer_name: str,
                  chunk_sink_path: str|None=None,
                  fixed_size:int=512,
                  **kwargs
                  ):
 
-        tokenizer_name = kwargs.get("tokenizer_name", 'Qwen/Qwen3-Embedding-0.6B')
+        tokenizer_name = kwargs.get("tokenizer_name") or 'Qwen/Qwen3-Embedding-0.6B'
 
         # if tokenizer_name is not None:
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, trust_remote_code=True)

@@ -31,14 +31,14 @@ Additional Considerations: Avoid very long groups of sentences. Aim for a good b
 
 
 
-# @CHUNKER_REG.register("LumberChunker")
+@CHUNKER_REG.register("LumberChunker")
 class LumberChunker(BaseChunker):
 
     def __init__(self,
                  granularity: str = 'sentence',
                  **kwargs):
 
-        self.max_tokens = kwargs.get('max_tokens', 8192)
+        self.max_tokens = kwargs.get('max_tokens') or 8192
 
         self.granularity = granularity
 

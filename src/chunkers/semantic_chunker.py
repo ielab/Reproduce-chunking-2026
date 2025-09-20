@@ -24,7 +24,7 @@ class SemanticChunker(BaseChunker):
         self.splitter = None
         # self.kwargs = kwargs
 
-        self.embedding_model_name = kwargs.get('embedding_model_name', 'BAAI/bge-small-en')
+        self.embedding_model_name = kwargs.get('embedding_model_name') or 'BAAI/bge-small-en'
 
         self._setup_semantic_chunking()
 
