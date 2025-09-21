@@ -20,7 +20,7 @@ class Chunk:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 @dataclass
-class Embedding:
+class ChunkEmbedding:
     doc_id: str
     chunk_id: str
     vector: List[float] | np.ndarray

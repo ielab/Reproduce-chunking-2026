@@ -21,3 +21,9 @@ def read_jsonl_gz(path: str) -> Iterator[Dict[str, Any]]:
         for line in f:
             if line.strip():
                 yield json.loads(line)
+
+
+
+def write_evaluation_jsonl(path: str, record: Dict[str, Any]):
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")

@@ -16,12 +16,6 @@ from src.io import *
 API_KEY = None
 
 
-def _loads_json(s: str) -> dict:
-    try:
-        return json.loads(s) if s else {}
-    except Exception as e:
-        raise SystemExit(f"Invalid JSON: {s}{e}")
-
 def cmd_chunk(args: argparse.Namespace):
 
     args_dict = vars(args)
@@ -108,6 +102,7 @@ def cmd_encoder(args: argparse.Namespace):
 
     P = Paths(dataset_name=args_dict['dataset_name'], base_dir=args_dict['output_folder'])
     embeddings_dir = P.er_dir(args.chunk_run_id, embd_run_id)
+
 
     if not os.path.exists(embeddings_dir):
         os.makedirs(embeddings_dir)
@@ -198,10 +193,10 @@ def cmd_evaluator(args: argparse.Namespace):
 
     start = time.perf_counter()
 
-    chunk_path = f"{args.source_path}/chunks/{args.chunk_run_id}/chunks.jsonl"
-    query_path = f"{args.source_path}/queries/{args.query_run_id}/queries.jsonl"
-    chunk_embed_path = f"{args.source_path}/embeddings/{args.chunk_run_id}/{args.chunk_embedding_run_id}/embeddings.jsonl.gz"
-    query_embed_embed_path = f"{args.source_path}/query_embeddings/{args.query_run_id}/{args.query_embedding_run_id}/embeddings.jsonl"
+    chunk_path = f"{args.source_path}/{args.dataset_name}/chunks/{args.chunk_run_id}/chunks.jsonl"
+    query_path = f"{args.source_path}/{args.dataset_name}/queries/{args.query_run_id}/queries.jsonl"
+    chunk_embed_path = f"{args.source_path}/{args.dataset_name}/embeddings/{args.chunk_run_id}/{args.chunk_embedding_run_id}/embeddings.jsonl.gz"
+    query_embed_embed_path = f"{args.source_path}/{args.dataset_name}/query_embeddings/{args.query_run_id}/{args.query_embedding_run_id}/embeddings.jsonl"
 
     # load chunks, queries, chunk embeddings and query embeddings
     print('Load chunks, queries, chunk embeddings and query embeddings')
@@ -218,13 +213,39 @@ def cmd_evaluator(args: argparse.Namespace):
     print("Load successfully!!!")
 
     # register
-    evaluator: BaseEvaluator = EVALUATOR_REG.get(args.dataset_name)(scope=args.scope)
+    evaluator_mapping = {
+        'GutenQA': 'GutenQA',
+        'nfcorpus': 'beir',
+        'arguana': 'beir',
+        'fiqa': 'beir',
+        'scidocs': 'beir',
+        'scifact': 'beir',
+        'trec-covid': 'beir',
+    }
 
-    evaluator.evaluate(queries=queries,
+    evaluator_name = evaluator_mapping.get(args.dataset_name)
+    if evaluator_name is None:
+        raise ValueError(f'Evaluator {evaluator_mapping.get(args.dataset_name)} not found in Evaluator mapping.')
+
+    evaluator: BaseEvaluator = EVALUATOR_REG.get(evaluator_name)(scope=args.scope)
+
+    results = evaluator.evaluate(queries=queries,
                        query_embeddings=query_embs,
                        chunks=chunks,
                        chunk_embeddings=chunk_embs
                        )
+
+    # save eval result
+    save_path = 'src/results/result.jsonl'
+    info = {'dataset': args.dataset_name,
+            'chunker': args.chunk_run_id,
+            'encoder': args.chunk_embedding_run_id.split('-')[0],
+            'embedding_model': '-'.join(args.chunk_embedding_run_id.split('-')[1:]),}
+
+    results = {**info, **results}
+    write_evaluation_jsonl(save_path, results)
+    print(f'[evaluation] wrote -> {save_path}')
+    # print(results)
 
     print('Eval time:', time.perf_counter() - mid)
 
@@ -247,8 +268,8 @@ def build_parser() -> argparse.ArgumentParser:
     pc.add_argument('--data_folder', required=True)
     pc.add_argument('--sample', type=int)
     pc.add_argument("--chunker", required=True)
-    pc.add_argument("--embedding_model_name", default=None)
-    pc.add_argument("--tokenizer_name", default=None)
+    pc.add_argument("--embedding_model_name")
+    pc.add_argument("--tokenizer_name")
     pc.add_argument("--chunker_kwargs", default="{}")
     pc.set_defaults(func=cmd_chunk)
 

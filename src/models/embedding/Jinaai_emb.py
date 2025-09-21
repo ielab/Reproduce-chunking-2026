@@ -7,7 +7,7 @@ from src.models.embedding.base_embedding import BaseEmbeddingModel
 from src.registry import EMD_BACKBONE_REG
 
 
-@EMD_BACKBONE_REG.register('JinaV3')
+@EMD_BACKBONE_REG.register('Jinaai')
 class JinaV3EmbeddingModel(BaseEmbeddingModel):
     def __init__(self, model_name: str):
 
@@ -19,7 +19,7 @@ class JinaV3EmbeddingModel(BaseEmbeddingModel):
 
     @property
     def model_id(self) -> str:
-        return f"JinaV3: {self.model_name}"
+        return f"Jinaai: {self.model_name}"
 
     def get_embeddings(self, texts: List[str], **kwargs):
 

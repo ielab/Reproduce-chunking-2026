@@ -31,9 +31,10 @@ def build_chunk_run_id(processor: Dict[str, Any], chunker: Dict[str, Any]) -> st
 
     ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     chunker_name = chunker.get("chunker_name", "chunker")
-    processor_name = processor.get("processor_name", "processor")
+    # processor_name = processor.get("processor_name", "processor")
 
-    return f"{ts}-{chunker_name}-{processor_name}-{h}"
+    # return f"{ts}-{chunker_name}-{h}"
+    return f"{chunker_name}"
 
 
 def build_emb_run_id(chunk_run_id: str,
@@ -52,9 +53,11 @@ def build_emb_run_id(chunk_run_id: str,
 
     ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     enc_name = encoder.get("encoder_name")
-    backbone  = encoder.get("backbone")
+    # backbone  = encoder.get("backbone")
     model_name = encoder.get("model_name").split("/")[-1]
-    return f"{ts}-{enc_name}-{backbone}-{model_name}-{h}"
+
+    # return f"{ts}-{enc_name}-{model_name}-{h}"
+    return f"{enc_name}-{model_name}"
 
 
 def build_query_run_id(processor: Dict[str, Any]) -> str:
@@ -80,10 +83,11 @@ def build_query_embedding_run_id(qs_id, encoder: Dict[str, Any]) -> str:
 
     ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     enc_name = encoder.get("encoder_name")
-    backbone = encoder.get("backbone")
-    # model_name = encoder.get("model_name").split("\\")[-1]
+    # backbone = encoder.get("backbone")
+    model_name = encoder.get("model_name").split("/")[-1]
 
-    return f"{ts}-{enc_name}-{backbone}-{h}"
+    # return f"{ts}-{enc_name}-{model_name}-{h}"
+    return f"{model_name}"
 
 
 

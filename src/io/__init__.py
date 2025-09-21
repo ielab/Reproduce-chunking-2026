@@ -21,3 +21,5 @@ from src.io.loaders import (
     load_embeddings,
     load_queries_embeddings
 )
+
+from src.io.jsonl_io import write_evaluation_jsonl

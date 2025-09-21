@@ -8,7 +8,7 @@ import pyarrow.parquet as pq
 import zstandard as zstd
 import gzip
 
-from src.types import Chunk, Embedding, Query, QueryEmbedding
+from src.types import Chunk, ChunkEmbedding, Query, QueryEmbedding
 
 
 class JsonlSink:
@@ -22,7 +22,7 @@ class JsonlSink:
         else:
             raise ValueError(f"Unsupported file type: {path}")
 
-    def write_batch(self, objs: List[Chunk|Embedding|Query|QueryEmbedding]):
+    def write_batch(self, objs: List[Chunk | ChunkEmbedding | Query | QueryEmbedding]):
 
         for o in objs:
             rec = asdict(o)
@@ -54,7 +54,7 @@ class ParquetSink:
         self.writer = pq.ParquetWriter(self.path, schema=self._schema, compression="zstd")
 
 
-    def _batch_to_table(self, embs: List[Embedding]):
+    def _batch_to_table(self, embs: List[ChunkEmbedding]):
 
         doc_ids = [e.doc_id for e in embs]
         chunk_ids = [e.chunk_id for e in embs]
@@ -69,7 +69,7 @@ class ParquetSink:
         return pa.table(arrays, schema=self._schema)
 
 
-    def write_batch(self, embs: List[Embedding]):
+    def write_batch(self, embs: List[ChunkEmbedding]):
 
         table = self._batch_to_table(embs)
 
@@ -91,7 +91,7 @@ class JsonlZstSink:
         self._cctx = zstd.ZstdCompressor(level=level)
         self._writer = self._cctx.stream_writer(self._fh)
 
-    def write_batch(self, objs: List[Embedding]):
+    def write_batch(self, objs: List[ChunkEmbedding]):
 
         for o in objs:
             rec = asdict(o)

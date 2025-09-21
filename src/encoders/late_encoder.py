@@ -22,6 +22,7 @@ class LateEncoder(BaseEncoder):
                  backbone_kwargs: dict | None = None):
 
         backbone_cls = EMD_BACKBONE_REG.get(backbone)
+        self.backbone = backbone
 
         self.model: BaseEmbeddingModel = backbone_cls(**(backbone_kwargs or {}))
         self._sink = JsonlSink(embed_sink_path)
@@ -132,14 +133,46 @@ class LateEncoder(BaseEncoder):
 
                 self._sink.write_batch([embedding])
 
-
-
     def encode_queries(self,
                        queries: List[Query],
                        query_sink_path: str,
-                       batch_size: int,
+                       batch_size: int = 32,
                        **kwargs):
-        pass
+
+        output: List[QueryEmbedding] = []
+
+        call_kwargs = {}
+        if self.backbone == 'JinaV3':
+            call_kwargs['task'] = 'retrieval.query'
+
+        elif self.backbone == 'Qwen3':
+            call_kwargs['prompt_name'] = 'query'
+
+        query_sink = JsonlSink(query_sink_path)
+
+        for i in range(0, len(queries), batch_size):
+            batch = queries[i:i + batch_size]
+
+            vecs = self.model.get_embeddings(
+                texts=[c.text for c in batch],
+                prompt_name='query',
+                **call_kwargs
+            )
+
+            if isinstance(vecs, np.ndarray):
+                vecs = vecs.tolist()
+
+            for query, vec in zip(batch, vecs):
+
+                embedding = QueryEmbedding(
+                    query_id=query.query_id,
+                    vector=vec,
+                )
+
+                if query_sink:
+                    query_sink.write_batch([embedding])
+
+        return output
 
 
 # function:
