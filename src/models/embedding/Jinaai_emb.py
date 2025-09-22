@@ -8,7 +8,7 @@ from src.registry import EMD_BACKBONE_REG
 
 
 @EMD_BACKBONE_REG.register('Jinaai')
-class JinaV3EmbeddingModel(BaseEmbeddingModel):
+class JinaaiEmbeddingModel(BaseEmbeddingModel):
     def __init__(self, model_name: str):
 
         self.model_name = model_name
@@ -46,3 +46,20 @@ class JinaV3EmbeddingModel(BaseEmbeddingModel):
         outputs = self.model(**inputs)
 
         return outputs
+
+
+if __name__ == '__main__':
+
+    import numpy as np
+    from sentence_transformers.util import cos_sim
+
+    name = 'jinaai/jina-embeddings-v2-small-en'
+    emb_model = JinaaiEmbeddingModel(name)
+
+    e = emb_model.get_embeddings([
+    'How is the weather tomorrow?',
+    'How is the weather today?'
+])
+
+    print(cos_sim(e[0], e[1]))
+

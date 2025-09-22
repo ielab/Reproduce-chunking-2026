@@ -23,7 +23,7 @@ class RegularEncoder(BaseEncoder):
         backbone_cls = EMD_BACKBONE_REG.get(backbone)
 
         self.model: BaseEmbeddingModel = backbone_cls(**(backbone_kwargs or {}))
-        self._sink = JsonlSink(embed_sink_path)
+        self._sink = JsonlSink(embed_sink_path) if embed_sink_path else None
         # self._sink = JsonlZstSink(embed_sink_path)
 
 
@@ -35,9 +35,8 @@ class RegularEncoder(BaseEncoder):
         output: List[ChunkEmbedding] = []
 
         call_kwargs = {}
-        if self.backbone == 'JinaV3':
-            call_kwargs['task'] = 'retrieval.passage'
-
+        # if self.backbone == 'Jinaai':
+        #     call_kwargs['task'] = 'retrieval.passage'
 
         for i in tqdm(range(0, len(chunks), batch_size)):
             batch = chunks[i:i+batch_size]
@@ -60,13 +59,11 @@ class RegularEncoder(BaseEncoder):
                     vector=vec,
                 )
 
-                if self._sink:
-                    self._sink.write_batch([embedding])
 
-                # output.append(embedding)
+                output.append(embedding)
 
-        self._sink.close()
-        # self._sink.write_batch(output)
+        if self._sink is not None:
+            self._sink.write_batch(output)
 
         return output
 
@@ -93,7 +90,6 @@ class RegularEncoder(BaseEncoder):
 
             vecs = self.model.get_embeddings(
                 texts=[c.text for c in batch],
-                prompt_name='query',
                 **call_kwargs
             )
 
@@ -107,8 +103,43 @@ class RegularEncoder(BaseEncoder):
                     vector=vec,
                 )
 
-                if query_sink:
-                    query_sink.write_batch([embedding])
+                output.append(embedding)
+
+        if query_sink:
+            query_sink.write_batch(output)
 
         return output
 
+
+if __name__ == '__main__':
+
+    backbone = 'Jinaai'
+    model_name = 'jinaai/jina-embeddings-v2-small-en'
+
+    text_list = [
+    'How is the weather today?',
+    'What is the current weather like today?'
+]
+    chunk_list = []
+
+    for idx, text in enumerate(text_list):
+
+        c = Chunk(
+            doc_id=str(idx),
+            chunk_id=str(idx),
+            text=text,
+        )
+
+        chunk_list.append(c)
+
+    encoder = RegularEncoder(backbone,
+                             embed_sink_path=None,
+                             backbone_kwargs={'model_name': model_name})
+
+    test_output = encoder.encode(chunk_list)
+    # print(test_output)
+
+    vec1 = test_output[0].vector
+    vec2 = test_output[1].vector
+    from sentence_transformers.util import cos_sim
+    print(cos_sim(vec1, vec2))

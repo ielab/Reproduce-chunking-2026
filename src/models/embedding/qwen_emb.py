@@ -67,14 +67,14 @@ class Qwen3EmbeddingModel(BaseEmbeddingModel):
 
     def get_embeddings(self, texts: List[str], **kwargs):
 
-        task = kwargs.get('peompt_name', None)
+        prompt_name = kwargs.get('prompt_name', None)
 
-        if task is None:
+        if prompt_name is None:
 
             embeddings = self.emb_model.encode(texts)
 
         else:
-            embeddings = self.emb_model.encode(texts, task=task)
+            embeddings = self.emb_model.encode(texts, prompt_name=prompt_name)
 
         return embeddings
 

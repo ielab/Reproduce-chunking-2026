@@ -90,14 +90,12 @@ class LateEncoder(BaseEncoder):
                batch_size: int,
                **kwargs):
 
-
-
         doc_id_list = [c.doc_id for c in chunks]
         # doc_range = self._get_book_range(doc_id_list)
         doc_range = self._get_document_range_by_doc_id(doc_id_list)
-        print(doc_range)
 
-        for doc_id, position_idx in doc_range.items():
+
+        for doc_id, position_idx in tqdm(doc_range.items()):
 
             doc_start_idx, doc_end_idx = position_idx['start'], position_idx['end']
 

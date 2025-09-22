@@ -38,7 +38,7 @@ class QueryEmbedding:
 class Query:
     query_id: str
     text: str
-    qrels: Dict[str, int] = field(default_factory=Dict)
+    qrels: Dict[str, int] = field(default_factory=dict)
     chunk_must_Contain: str =field(default_factory=str)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
