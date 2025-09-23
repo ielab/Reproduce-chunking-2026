@@ -25,7 +25,7 @@ class LateEncoder(BaseEncoder):
         self.backbone = backbone
 
         self.model: BaseEmbeddingModel = backbone_cls(**(backbone_kwargs or {}))
-        self._sink = JsonlSink(embed_sink_path)
+        self._sink = JsonlSink(embed_sink_path) if embed_sink_path else None
 
         self.tokenizer = AutoTokenizer.from_pretrained(backbone_kwargs.get('model_name'),
                                                        trust_remote_code=True)
@@ -87,8 +87,10 @@ class LateEncoder(BaseEncoder):
 
     def encode(self,
                chunks: List[Chunk],
-               batch_size: int,
+               batch_size: int=32,
                **kwargs):
+
+        output: List[ChunkEmbedding] = []
 
         doc_id_list = [c.doc_id for c in chunks]
         # doc_range = self._get_book_range(doc_id_list)
@@ -109,6 +111,7 @@ class LateEncoder(BaseEncoder):
             texts = self.merge_chunks(doc_text)
 
             # outputs = self.model.get_all_token_embeddings(texts=[texts])
+            # input_ids = self.tokenizer.batch_encode_plus([texts])['input_ids']
 
             vectors = self.model.get_all_token_embeddings(texts=[texts]).last_hidden_state # 1, N, D
 
@@ -129,7 +132,15 @@ class LateEncoder(BaseEncoder):
                     vector=chunk_vector,
                 )
 
-                self._sink.write_batch([embedding])
+                output.append(embedding)
+
+                # self._sink.write_batch([embedding])
+
+        if self._sink is not None:
+            self._sink.write_batch(output)
+
+
+        return output
 
     def encode_queries(self,
                        queries: List[Query],
@@ -140,11 +151,14 @@ class LateEncoder(BaseEncoder):
         output: List[QueryEmbedding] = []
 
         call_kwargs = {}
-        if self.backbone == 'JinaV3':
+        if self.backbone == 'JinaaiV3':
             call_kwargs['task'] = 'retrieval.query'
 
         elif self.backbone == 'Qwen3':
             call_kwargs['prompt_name'] = 'query'
+
+        elif self.backbone == 'Normic':
+            call_kwargs['instruction'] = 'search_query: '
 
         query_sink = JsonlSink(query_sink_path)
 
@@ -153,7 +167,6 @@ class LateEncoder(BaseEncoder):
 
             vecs = self.model.get_embeddings(
                 texts=[c.text for c in batch],
-                prompt_name='query',
                 **call_kwargs
             )
 
@@ -176,3 +189,36 @@ class LateEncoder(BaseEncoder):
 # function:
 #   - inputs: text, and start and end position of each token
 #       - overlapping ?, tokenizer ?
+
+if __name__ == '__main__':
+
+    backbone = 'Normic'
+    model_name = 'nomic-ai/nomic-embed-text-v1'
+
+    text_list = [
+        'How is the weather today?',
+        'What is the current weather like today?'
+    ]
+    chunk_list = []
+
+    for idx, text in enumerate(text_list):
+        c = Chunk(
+            doc_id=str(1),
+            chunk_id=str(idx),
+            text=text,
+        )
+
+        chunk_list.append(c)
+
+    encoder = LateEncoder(backbone,
+                             embed_sink_path=None,
+                             backbone_kwargs={'model_name': model_name})
+
+    test_output = encoder.encode(chunk_list)
+    # print(test_output)
+
+    vec1 = test_output[0].vector
+    vec2 = test_output[1].vector
+    from sentence_transformers.util import cos_sim
+
+    print(cos_sim(vec1, vec2))

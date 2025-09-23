@@ -35,8 +35,12 @@ class RegularEncoder(BaseEncoder):
         output: List[ChunkEmbedding] = []
 
         call_kwargs = {}
-        # if self.backbone == 'Jinaai':
-        #     call_kwargs['task'] = 'retrieval.passage'
+        if self.backbone == 'JinaaiV3':
+            call_kwargs['task'] = 'retrieval.passage'
+
+        elif self.backbone == 'Normic':
+            call_kwargs['instruction'] = 'search_document: '
+
 
         for i in tqdm(range(0, len(chunks), batch_size)):
             batch = chunks[i:i+batch_size]
@@ -77,11 +81,14 @@ class RegularEncoder(BaseEncoder):
         output: List[QueryEmbedding] = []
 
         call_kwargs = {}
-        if self.backbone == 'JinaV3':
+        if self.backbone == 'JinaaiV3':
             call_kwargs['task'] = 'retrieval.query'
 
         elif self.backbone == 'Qwen3':
             call_kwargs['prompt_name'] = 'query'
+
+        elif self.backbone == 'Normic':
+            call_kwargs['instruction'] = 'search_query: '
 
         query_sink = JsonlSink(query_sink_path)
 
@@ -113,8 +120,8 @@ class RegularEncoder(BaseEncoder):
 
 if __name__ == '__main__':
 
-    backbone = 'Jinaai'
-    model_name = 'jinaai/jina-embeddings-v2-small-en'
+    backbone = 'Normic'
+    model_name = 'nomic-ai/nomic-embed-text-v1'
 
     text_list = [
     'How is the weather today?',
