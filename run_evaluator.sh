@@ -37,10 +37,10 @@ ENCODERS=(
 
 # Backbones and their model names (pair format BACKBONE|MODEL_NAME)
 BACKBONES_MODELS=(
-  "JinaaiV2|jinaai/jina-embeddings-v2-small-en"
-  "JinaaiV3|jinaai/jina-embeddings-v3"
-  "Qwen3|Qwen/Qwen3-Embedding-0.6B"
-  "Normic|nomic-ai/nomic-embed-text-v1"
+  "JinaaiV2|jinaai/jina-embeddings-v2-small-en|cosine"
+  "JinaaiV3|jinaai/jina-embeddings-v3|cosine"
+  "Qwen3|Qwen/Qwen3-Embedding-0.6B|cosine"
+  "Normic|nomic-ai/nomic-embed-text-v1|cosine"
 )
 
 # Chunk run IDs to iterate
@@ -77,8 +77,8 @@ echo "Datasets: ${DATASETS[*]}"
 echo "Encoders: ${ENCODERS[*]}"
 echo "Backbones/Models:"
 for bm in "${BACKBONES_MODELS[@]}"; do
-  IFS="|" read -r BB MN <<<"$bm"
-  echo "  - $BB | $MN"
+  IFS="|" read -r BB MN SIM <<<"$bm"
+  echo "  - $BB | $MN | $SIM "
 done
 
 
@@ -99,7 +99,7 @@ for DATASET in "${DATASETS[@]}"; do
 
             for bm in "${BACKBONES_MODELS[@]}"; do
 
-                IFS="|" read -r BACKBONE MODEL <<<"$bm"
+                IFS="|" read -r BACKBONE MODEL SIMILARITY <<<"$bm"
                 MODEL_SUFFIX="${MODEL##*/}"
                 CHUNK_EMBEDDING_ID="${ENCODER}-${MODEL_SUFFIX}"
                 QUERY_EMBEDDING_ID="${MODEL_SUFFIX}"
@@ -115,6 +115,7 @@ for DATASET in "${DATASETS[@]}"; do
                       --chunk_embedding_run_id "$CHUNK_EMBEDDING_ID"
                       --query_embedding_run_id "$QUERY_EMBEDDING_ID"
                       --source_path "$OUTPUT_FOLDER"
+                      --similarity "$SIMILARITY"
                       --scope "$SCOPE"
                     )
 

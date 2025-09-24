@@ -12,6 +12,14 @@ def doc_sim(q_vec: np.array, d_vec: np.array):
 
         return scores
 
+def cos_sim(q_vec: np.array, d_vec: np.array):
+
+    query_norm = q_vec / np.linalg.norm(q_vec, axis=1, keepdims=True)
+    chunk_norm = d_vec / np.linalg.norm(d_vec, axis=1, keepdims=True)
+
+    return np.dot(query_norm, chunk_norm.T)
+
+
 def _top_k_rows(scores: np.array, k: int) -> Tuple[np.array, np.array]:
 
     top_indices = np.argsort(scores, axis=1)[:, -k:][:, ::-1]
@@ -44,13 +52,19 @@ def keep_highest_scores(pairs: List[Tuple[str, float]]) -> List[Tuple[str, float
 
 class SimpleRanker:
     def __init__(self,
-                 chunk_embs: List[ChunkEmbedding]):
+                 chunk_embs: List[ChunkEmbedding],
+                 similarity: str):
         self.chunk_embs = chunk_embs
         # self.chunks = chunks
 
         # self.chunk_doc_id_list = [c.doc_id for c in self.chunk_embs]
         self.c_chunk_id_list = [c.chunk_id for c in self.chunk_embs]
         self.C_full = [c.vector for c in self.chunk_embs]
+
+        self.similarity_func = {
+            'dot': doc_sim,
+            'cosine': cos_sim,
+        }[similarity]
 
 
     @staticmethod
@@ -96,7 +110,9 @@ class SimpleRanker:
                     assert len(c_chunk_ids_sub) == len(C_sub)
                     assert len(query_ids_sub) == len(Q_sub)
 
-                    score_matrix = doc_sim(Q_sub, np.array(C_sub))
+                    # score_matrix = doc_sim(Q_sub, np.array(C_sub))
+                    score_matrix = self.similarity_func(Q_sub, np.array(C_sub))
+                    # print(score_matrix)
 
                     top_indices, top_scores = _top_k_rows(score_matrix, top_k_max*100) # for proposition case, expand ranking number
 

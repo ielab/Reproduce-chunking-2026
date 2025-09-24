@@ -227,7 +227,10 @@ def cmd_evaluator(args: argparse.Namespace):
     if evaluator_name is None:
         raise ValueError(f'Evaluator {evaluator_mapping.get(args.dataset_name)} not found in Evaluator mapping.')
 
-    evaluator: BaseEvaluator = EVALUATOR_REG.get(evaluator_name)(scope=args.scope)
+    evaluator: BaseEvaluator = EVALUATOR_REG.get(evaluator_name)(
+        scope=args.scope,
+        similarity=args.similarity
+    )
 
     results = evaluator.evaluate(queries=queries,
                        query_embeddings=query_embs,
@@ -300,6 +303,7 @@ def build_parser() -> argparse.ArgumentParser:
     peval.add_argument("--dataset_name", required=True)
     peval.add_argument("--scope", choices=['document', 'corpus'], required=True,
                        help="Retrieve in a document or in all corpus")
+    peval.add_argument("--similarity", choices=['cosine', 'dot'])
     peval.add_argument("--source_path", required=True)
     peval.set_defaults(func=cmd_evaluator)
 

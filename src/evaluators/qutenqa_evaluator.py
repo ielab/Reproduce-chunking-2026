@@ -45,7 +45,7 @@ class QutenQAEvaluator(BaseEvaluator):
 
     def __init__(self,
                  scope: str = 'document',
-                 similarity: str = 'dot',
+                 similarity: str = 'cosine',
                  **kwargs):
 
         # if metrics is None:
@@ -67,7 +67,7 @@ class QutenQAEvaluator(BaseEvaluator):
         assert len(queries) == len(query_embeddings)
         assert len(chunks) == len(chunk_embeddings)
 
-        ranker = SimpleRanker(chunk_embs=chunk_embeddings)
+        ranker = SimpleRanker(chunk_embs=chunk_embeddings, similarity=self.similarity)
         ranking_result = ranker.rank(
             query_embs=query_embeddings,
             top_k_max=max(self.k_values),

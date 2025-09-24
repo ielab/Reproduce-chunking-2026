@@ -31,7 +31,25 @@ class BeirEvaluator(BaseEvaluator):
 
         self.aggregation_function = agg_functions[aggregation]
 
+        similarity = kwargs.get('similarity', 'cosine')
 
+        self.similarity_function = {
+            'cosine': self.cosine_similarity,
+            'dot': self.dot_product
+        }[similarity]
+
+
+
+    def dot_product(self, query_embeddings, chunk_embeddings):
+        return np.dot(query_embeddings, chunk_embeddings.T)
+
+    def cosine_similarity(self, query_embeddings, chunk_embeddings):
+        # Normalize query and chunk embeddings
+        query_norm = query_embeddings / np.linalg.norm(query_embeddings, axis=1, keepdims=True)
+        chunk_norm = chunk_embeddings / np.linalg.norm(chunk_embeddings, axis=1, keepdims=True)
+
+        # Compute cosine similarity as dot product of normalized vectors
+        return np.dot(query_norm, chunk_norm.T)
 
     def rank(self,
              chunk_embeddings: List[ChunkEmbedding],
@@ -50,7 +68,8 @@ class BeirEvaluator(BaseEvaluator):
         C_full = np.asarray(chunk_emb_list)
         Q_full = np.asarray(query_emb_list)
 
-        similarity_matrix = np.dot(Q_full, C_full.T)
+        # similarity_matrix = np.dot(Q_full, C_full.T)
+        similarity_matrix = self.similarity_function(Q_full, C_full)
 
         results: Dict[str, Dict[str, float]] = {}
 
