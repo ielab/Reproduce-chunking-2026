@@ -250,7 +250,7 @@ allowing you to compare how well various combinations perform in retrieval tasks
 
 ---------
 
-## 🚀 How to Run
+## 🚀 Run Example
 
 Run the evaluator with a given chunking run, query run, and their corresponding embeddings:
 

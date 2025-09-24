@@ -1,4 +1,4 @@
-from typing import List, Dict, Generator
+from typing import List, Dict
 from collections import defaultdict
 import numpy as np
 
@@ -68,16 +68,20 @@ class QutenQAEvaluator(BaseEvaluator):
         assert len(chunks) == len(chunk_embeddings)
 
         ranker = SimpleRanker(chunk_embs=chunk_embeddings)
-        ranking_result = ranker.rank(query_embs=query_embeddings, top_k_max=max(self.k_values), scope=self.scope)
+        ranking_result = ranker.rank(
+            query_embs=query_embeddings,
+            top_k_max=max(self.k_values),
+            scope=self.scope)
 
         # get query-relevance mapping
-        chunk2id = {c.chunk_id:c.text for c in chunks}
+        chunk_id2text = {c.chunk_id:c.text for c in chunks}
         ranked_relevance_dict: Dict[str: List[int]] = {}
 
         for query in queries:
 
             query_id = query.query_id
-            re_chunk_list = [chunk2id.get(c_id) for c_id, _ in ranking_result.get(query_id, [])]
+            re_chunk_list = [chunk_id2text.get(c_id) for c_id, _ in ranking_result.get(query_id, [])]
+
             relevance = find_index_of_match(re_chunk_list, query.chunk_must_Contain)
 
             ranked_relevance_dict[query_id] = relevance

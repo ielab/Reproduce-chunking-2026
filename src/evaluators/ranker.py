@@ -20,6 +20,27 @@ def _top_k_rows(scores: np.array, k: int) -> Tuple[np.array, np.array]:
     return top_indices, top_scores
 
 
+def keep_highest_scores(pairs: List[Tuple[str, float]]) -> List[Tuple[str, float]]:
+    """
+    If there are duplicate chunk_ids in the ranking_result, keep only the one with the highest score.
+    :param pairs:
+    :return:
+    """
+
+    best_scores = {}
+    order = []
+
+    for chunk_id, score in pairs:
+        if chunk_id not in best_scores:
+            best_scores[chunk_id] = score
+            order.append(chunk_id)
+        else:
+            if score > best_scores[chunk_id]:
+                best_scores[chunk_id] = score
+
+    return [(cid, best_scores[cid]) for cid in order]
+
+
 
 class SimpleRanker:
     def __init__(self,
@@ -77,12 +98,16 @@ class SimpleRanker:
 
                     score_matrix = doc_sim(Q_sub, np.array(C_sub))
 
-                    top_indices, top_scores = _top_k_rows(score_matrix, top_k_max)
+                    top_indices, top_scores = _top_k_rows(score_matrix, top_k_max*100) # for proposition case, expand ranking number
 
                     for i, qid in enumerate(query_ids_sub):
                         rows = top_indices[i]
                         scores = top_scores[i]
-                        out[qid] = [(c_chunk_ids_sub[j], float(s)) for j, s in zip(rows, scores)]
+                        pairs = [(c_chunk_ids_sub[j], float(s)) for j, s in zip(rows, scores)]
+                        keep_highest_pairs = keep_highest_scores(pairs)
+                        # print(len(pairs), len(keep_highest_pairs))
+                        out[qid] = keep_highest_pairs
+                        # out[qid] = [(c_chunk_ids_sub[j], float(s)) for j, s in zip(rows, scores)]
 
         elif scope == 'corpus':
 
@@ -97,12 +122,15 @@ class SimpleRanker:
                 assert len(query_ids_sub) == len(Q_sub)
 
                 score_matrix = doc_sim(Q_sub, np.array(self.C_full))
-                top_indices, top_scores = _top_k_rows(score_matrix, top_k_max)
+                top_indices, top_scores = _top_k_rows(score_matrix, top_k_max*100) # for proposition case, expand ranking number
 
                 for i, qid in enumerate(query_ids_sub):
                     rows = top_indices[i]
                     scores = top_scores[i]
-                    out[qid] = [(self.c_chunk_id_list[j], float(s)) for j, s in zip(rows, scores)]
+                    pairs = [(self.c_chunk_id_list[j], float(s)) for j, s in zip(rows, scores)]
+                    keep_highest_pairs = keep_highest_scores(pairs)
+                    out[qid] = keep_highest_pairs
+                    # out[qid] = [(self.c_chunk_id_list[j], float(s)) for j, s in zip(rows, scores)]
 
 
         else:
