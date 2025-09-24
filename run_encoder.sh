@@ -1,8 +1,29 @@
-#!/usr/bin/env bash
+#!/bin/bash
+#SBATCH --time=2:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=64g
+#SBATCH --gres=gpu:1
+#SBATCH --qos=express
+#SBATCH --account=OD-236007
+#SBATCH --job-name=grpo-bool
+#SBATCH --output=slurm_logs/print-chunk.txt
+#SBATCH --error=slurm_logs/error-chunk.txt
+
+# === Load Modules and Activate Environment ===
+module load miniconda3
+module load cuda
+source activate "/scratch3/wan458/chunking-reproduce/envs"
+
+
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+dataset_index=$1
 
 # ===== User-tunable knobs =====
 OUTPUT_FOLDER="src/test_outputs3"
-BATCH_SIZE=10
+
 
 # Datasets
 DATASETS=(
@@ -14,6 +35,8 @@ DATASETS=(
   "arguana"
   "scidocs"
 )
+
+DATASET="${DATASETS[$dataset_index]:-GutenQA}"
 
 # One query_run_id per dataset (fill these in!)
 declare -A QUERY_ID_BY_DATASET=(
@@ -60,7 +83,7 @@ DRYRUN=${DRYRUN:-0}
 timestamp() { date +"%Y-%m-%d %H:%M:%S"; }
 
 echo "[$(timestamp)] Starting encoder sweep…"
-echo "Datasets: ${DATASETS[*]}"
+echo "Dataset: $DATASET"
 echo "Encoders: ${ENCODERS[*]}"
 echo "Backbones/Models:"
 for bm in "${BACKBONES_MODELS[@]}"; do
@@ -76,42 +99,49 @@ done
 
 
 # Matrix sweep
-for DATASET in "${DATASETS[@]}"; do
-    QUERY_RUN_ID="${QUERY_ID_BY_DATASET[$DATASET]:-}"
 
-    first_chunk=1
 
-    for ENCODER in "${ENCODERS[@]}"; do
 
-        for bm in "${BACKBONES_MODELS[@]}"; do
+QUERY_RUN_ID="${QUERY_ID_BY_DATASET[$DATASET]:-}"
 
-            IFS="|" read -r BACKBONE MODEL_NAME <<<"$bm"
+first_chunk=1
 
-            for CHUNK_RUN_ID in "${CHUNK_RUN_IDS[@]}"; do
+for ENCODER in "${ENCODERS[@]}"; do
 
-                CMD=(
-                  python -m src.runner encoder
-                  --dataset_name "$DATASET"
-                  --chunk_run_id "$CHUNK_RUN_ID"
-                  --encoder "$ENCODER"
-                  --backbone "$BACKBONE"
-                  --model_name "$MODEL_NAME"
-                  --batch_size "$BATCH_SIZE"
-                  --output_folder "$OUTPUT_FOLDER"
-                )
+    for bm in "${BACKBONES_MODELS[@]}"; do
 
-                if [[ $first_chunk -eq 1 ]]; then
-                    CMD+=( --query --query_run_id "$QUERY_RUN_ID" )
-                    first_chunk=0
-                fi
+        IFS="|" read -r BACKBONE MODEL_NAME <<<"$bm"
+        # if it's jina-embeddings-v2-small-en backbone, batch size use 12, otherwise 512
+        if [[ "$MODEL_NAME" == "jinaai/jina-embeddings-v2-small-en" ]]; then
+          BATCH_SIZE=12
+        else
+          BATCH_SIZE=512
+        fi
 
-                echo ">>> [$(timestamp)] dataset=$DATASET | encoder=$ENCODER | backbone=$BACKBONE | model=$MODEL_NAME | chunk=$CHUNK_RUN_ID | query=$QUERY_RUN_ID"
-                echo "${CMD[@]}"
-                if [[ "$DRYRUN" -eq 0 ]]; then
-                  "${CMD[@]}"
-                fi
-                echo
-            done
+        for CHUNK_RUN_ID in "${CHUNK_RUN_IDS[@]}"; do
+
+            CMD=(
+              python -m src.runner encoder
+              --dataset_name "$DATASET"
+              --chunk_run_id "$CHUNK_RUN_ID"
+              --encoder "$ENCODER"
+              --backbone "$BACKBONE"
+              --model_name "$MODEL_NAME"
+              --batch_size "$BATCH_SIZE"
+              --output_folder "$OUTPUT_FOLDER"
+            )
+
+            if [[ $first_chunk -eq 1 ]]; then
+                CMD+=( --query --query_run_id "$QUERY_RUN_ID" )
+                first_chunk=0
+            fi
+
+            echo ">>> [$(timestamp)] dataset=$DATASET | encoder=$ENCODER | backbone=$BACKBONE | model=$MODEL_NAME | chunk=$CHUNK_RUN_ID | query=$QUERY_RUN_ID"
+            echo "${CMD[@]}"
+            if [[ "$DRYRUN" -eq 0 ]]; then
+              "${CMD[@]}"
+            fi
+            echo
         done
     done
 done

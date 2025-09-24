@@ -26,11 +26,15 @@ class JinaaiEmbeddingModelV2(BaseEmbeddingModel):
         task = kwargs.get('task', None)
 
         if task is None:
-
-            embeddings = self.emb_model.encode(texts)
+            try:
+                embeddings = self.emb_model.encode(texts, batch_size=kwargs.get('batch_size', 32))
+            except RuntimeError as e:
+                print(len(texts))
+                print(len(texts[0]))
+                raise e
 
         else:
-            embeddings = self.emb_model.encode(texts, task=task)
+            embeddings = self.emb_model.encode(texts, task=task, batch_size=kwargs.get('batch_size', 32))
 
         return embeddings
 
@@ -68,10 +72,10 @@ class JinaaiEmbeddingModelV3(BaseEmbeddingModel):
 
         if task is None:
 
-            embeddings = self.emb_model.encode(texts)
+            embeddings = self.emb_model.encode(texts, batch_size=kwargs.get('batch_size', 32))
 
         else:
-            embeddings = self.emb_model.encode(texts, task=task)
+            embeddings = self.emb_model.encode(texts, task=task, batch_size=kwargs.get('batch_size', 32))
 
         return embeddings
 
