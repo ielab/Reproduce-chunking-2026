@@ -38,7 +38,7 @@ class SemanticChunker(BaseChunker):
         self.embed_model = HuggingFaceEmbedding(
             model_name=self.embedding_model_name,
             trust_remote_code=True,
-            embed_batch_size=1
+            # embed_batch_size=1
         )
 
         self.splitter = SemanticSplitterNodeParser(
