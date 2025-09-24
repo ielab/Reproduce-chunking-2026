@@ -1,9 +1,29 @@
 #!/bin/bash
+#SBATCH --time=2:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=64g
+#SBATCH --gres=gpu:1
+#SBATCH --qos=express
+#SBATCH --account=OD-236007
+#SBATCH --job-name=grpo-bool
+#SBATCH --output=slurm_logs/print-chunk.txt
+#SBATCH --error=slurm_logs/error-chunk.txt
+
+# === Load Modules and Activate Environment ===
+module load miniconda3
+module load cuda
+source activate "/scratch3/wan458/chunking-reproduce/envs"
+
+
 
 # ===== User-tunable knobs =====
 DATA_FOLDER="src/data"
-OUTPUT_FOLDER="src/test_outputs3"
+OUTPUT_FOLDER="src/chunked_output"
 #SAMPLE=10
+# if output folder doesn't exist, create it
+mkdir -p "$OUTPUT_FOLDER"
 
 # Processor → datasets mapping
 PROCESSORS=("GutenQA" "beir")

@@ -127,7 +127,7 @@ def cmd_encoder(args: argparse.Namespace):
 
     if init_kwargs['backbone'] in ['openai']:
         if API_KEY is None:
-            raise ValueError(f'Backbone {args_dict['backbone']} API key is required')
+            raise ValueError(f"Backbone {args_dict['backbone']} API key is required")
         init_kwargs['backbone_kwargs']['api_key'] = API_KEY
 
     chunk_path = P.cs_chunks_path(args.chunk_run_id)

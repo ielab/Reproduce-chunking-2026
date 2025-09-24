@@ -106,7 +106,7 @@ class GutenQAProcessor(BaseProcessor):
             for idx, row in per_book_df.iterrows():
 
                 queries.append(Query(
-                    query_id=f'Book-{row['Book ID']}-Query-{idx}',
+                    query_id=f"Book-{row['Book ID']}-Query-{idx}",
                     text=row['Question'],
                     chunk_must_Contain=row['Chunk Must Contain']
                 ))

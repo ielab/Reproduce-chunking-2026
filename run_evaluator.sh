@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 
 # ===== User-tunable knobs =====
-OUTPUT_FOLDER="src/test_outputs3"
+OUTPUT_FOLDER="src/chunked_output"
+
+# if output folder doesn't exist, create it
+mkdir -p "$OUTPUT_FOLDER"
 
 # Datasets
 DATASETS=(

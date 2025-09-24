@@ -1,0 +1,4 @@
+/src/test_outputs3
+/src/data
+*.sh
+run_chunker.sh

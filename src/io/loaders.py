@@ -29,7 +29,7 @@ def load_queries(path: str) -> List[Query]:
     return out
 
 
-def load_embeddings(path: str) -> Generator[ChunkEmbedding]:
+def load_embeddings(path: str) -> Generator[ChunkEmbedding, None, None]:
 
     # out: List[Embedding] = []
 
