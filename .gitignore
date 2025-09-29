@@ -2,3 +2,4 @@
 /src/data
 *.sh
 run_chunker.sh
+/src/chunked_output
