@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.8.23)  29 SEP 2025 15:09
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.8.23)  29 SEP 2025 16:21
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -578,6 +578,11 @@ LaTeX Font Info:    Trying to load font information for U+msb on input line 59.
 (/usr/local/texlive/2025/texmf-dist/tex/latex/amsfonts/umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 )
+Overfull \hbox (6.04173pt too wide) in paragraph at lines 65--66
+\OT1/cmr/m/n/9 chunk con-text in the re-sult-ing em-bed-dings. Con-cur-rently, 
+nu-mer-ous chunk-
+ []
+
 (./sections/introduction.tex) (./sections/methods.tex)
 (./sections/experimental_setup.tex) (./sections/results.tex)
 (./sections/related_work.tex) (./sections/conclusions.tex)
@@ -596,30 +601,23 @@ al/texlive/2025/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.enc}]
 LaTeX2e <2024-11-01> patch level 2
 L3 programming layer <2025-01-18>
  ***********
-
-
-Package rerunfilecheck Warning: File `ecir2026-chunking.out' has changed.
-(rerunfilecheck)                Rerun to get outlines right
-(rerunfilecheck)                or use package `bookmark'.
-
-Package rerunfilecheck Info: Checksums for `ecir2026-chunking.out':
-(rerunfilecheck)             Before: 397658BCD54D2316019563CBFDEBA4F1;586
-(rerunfilecheck)             After:  4785AA3B5F676A8761957A2D26933539;573.
+Package rerunfilecheck Info: File `ecir2026-chunking.out' has not changed.
+(rerunfilecheck)             Checksum: 1B7A5DC42A524DB6607EF64907AC7F57;712.
  ) 
 Here is how much of TeX's memory you used:
  11946 strings out of 473190
  190671 string characters out of 5715800
- 593665 words of memory out of 5000000
+ 599665 words of memory out of 5000000
  35029 multiletter control sequences out of 15000+600000
  562690 words of font info for 51 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 75i,5n,79p,638b,440s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 75i,5n,79p,950b,440s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb
 ></usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx9.pfb><
 /usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></u
 sr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr9.pfb></usr/
 local/texlive/2025/texmf-dist/fonts/type1/public/cm-super/sfrm0900.pfb>
-Output written on ecir2026-chunking.pdf (1 page, 54967 bytes).
+Output written on ecir2026-chunking.pdf (1 page, 61654 bytes).
 PDF statistics:
  47 PDF objects out of 1000 (max. 8388607)
  33 compressed objects within 1 object stream
