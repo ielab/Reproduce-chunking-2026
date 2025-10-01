@@ -114,10 +114,19 @@ for ENCODER in "${ENCODERS[@]}"; do
         if [[ "$MODEL_NAME" == "jinaai/jina-embeddings-v2-small-en" ]]; then
           BATCH_SIZE=12
         else
-          BATCH_SIZE=512
+          BATCH_SIZE=256
         fi
 
+
         for CHUNK_RUN_ID in "${CHUNK_RUN_IDS[@]}"; do
+            # actual output folder look like /scratch3/wan458/chunking-reproduce/src/chunked_output/arguana/embeddings/FixedSizeChunker/LateEncoder-jina-embeddings-v2-small-en, if it exists, skip
+            MODEL_NAME_CLEAN="${MODEL_NAME##*/}"
+            ACTUAL_OUTPUT_FOLDER="$OUTPUT_FOLDER/$DATASET/embeddings/${CHUNK_RUN_ID}/${ENCODER}-${MODEL_NAME_CLEAN}"
+            echo "Checking output folder: $ACTUAL_OUTPUT_FOLDER"
+            if [[ -d "$ACTUAL_OUTPUT_FOLDER" ]]; then
+              echo "Skipping existing output folder: $ACTUAL_OUTPUT_FOLDER"
+              continue
+            fi
 
             CMD=(
               python -m src.runner encoder
