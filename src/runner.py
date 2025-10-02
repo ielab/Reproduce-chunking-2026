@@ -134,7 +134,7 @@ def cmd_encoder(args: argparse.Namespace):
     chunks = load_chunks(chunk_path)
 
     encoder: BaseEncoder = ENCODER_REG.get(args_dict['encoder_name'])(**init_kwargs)
-    encoder.encode(chunks=chunks, **call_kwargs)
+    encoder.encode_passages(chunks=chunks, **call_kwargs)
 
     # write manifest
     if init_kwargs['backbone_kwargs'].get('api_key'):

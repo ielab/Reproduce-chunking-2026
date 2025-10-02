@@ -1,14 +1,10 @@
 from typing import List
 
-from sentence_transformers import SentenceTransformer
+import torch
 from transformers import AutoTokenizer, AutoModel
 
 from src.models.embedding.base_embedding import BaseEmbeddingModel
 from src.registry import EMD_BACKBONE_REG
-
-
-import torch.nn.functional as F
-from torch import Tensor
 
 
 @EMD_BACKBONE_REG.register('JinaaiV2')
@@ -30,26 +26,12 @@ class JinaaiEmbeddingModelV2(BaseEmbeddingModel):
     def model_id(self) -> str:
         return f"Jinaai: {self.model_name}"
 
-    @staticmethod
-    def mean_pooling(model_output, attention_mask: Tensor) -> Tensor:
-        token_embeddings = model_output[0]  # First element of model_output contains all token embeddings
-        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-        return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
-
     def get_embeddings(self, texts: List[str], **kwargs):
-        batch_dict = self.tokenizer(
-            texts,
-            padding=True,
-            truncation=True,
-            return_tensors="pt",
-        ).to(self.model.device)
 
         with torch.no_grad():
-            outputs = self.model(**batch_dict)
+            outputs = self.model.encode(texts)
 
-        embeddings = self.mean_pooling(outputs, batch_dict['attention_mask'])
-        embeddings = F.normalize(embeddings, p=2, dim=1)
-        return embeddings.cpu().numpy()
+        return outputs
 
     def get_all_token_embeddings(self, texts: List[str], **kwargs):
 
@@ -60,7 +42,8 @@ class JinaaiEmbeddingModelV2(BaseEmbeddingModel):
             truncation=True
         ).to(self.model.device)
 
-        outputs = self.model(**inputs)
+        with torch.no_grad():
+            outputs = self.model(**inputs)
 
         return outputs
 
@@ -80,32 +63,38 @@ class JinaaiEmbeddingModelV3(BaseEmbeddingModel):
 
         self.model = AutoModel.from_pretrained(model_name, **model_kwargs)
 
+        self.prompts = {
+        "retrieval.query": "Represent the query for retrieving evidence documents: ",
+        "retrieval.passage": "Represent the document for retrieval: ",
+        "separation": "",
+        "classification": "",
+        "text-matching": ""
+    }
+
     @property
     def model_id(self) -> str:
         return f"Jinaai: {self.model_name}"
 
-    @staticmethod
-    def mean_pooling(model_output, attention_mask: Tensor) -> Tensor:
-        token_embeddings = model_output[0]  # First element of model_output contains all token embeddings
-        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-        return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
-
     def get_embeddings(self, texts: List[str], **kwargs):
-        batch_dict = self.tokenizer(
-            texts,
-            padding=True,
-            truncation=True,
-            return_tensors="pt",
-        ).to(self.model.device)
+
+        task = kwargs.get("task")
 
         with torch.no_grad():
-            outputs = self.model(**batch_dict)
 
-        embeddings = self.mean_pooling(outputs, batch_dict['attention_mask'])
-        embeddings = F.normalize(embeddings, p=2, dim=1)
-        return embeddings.cpu().numpy()
+            if task is not None:
+                embeddings = self.model.encode(texts, task=task)
+            else:
+                embeddings = self.model.encode(texts)
+
+        return embeddings
+
 
     def get_all_token_embeddings(self, texts: List[str], **kwargs):
+
+        task = kwargs.get("task")
+        if task is not None:
+            prefix = self.prompts[task]
+            texts = [prefix + text for text in texts]
 
         inputs = self.tokenizer(
             texts,
@@ -114,10 +103,10 @@ class JinaaiEmbeddingModelV3(BaseEmbeddingModel):
             truncation=True
         ).to(self.model.device)
 
-        outputs = self.model(**inputs)
+        with torch.no_grad():
+            outputs = self.model(**inputs)
 
         return outputs
-
 
 
 if __name__ == '__main__':

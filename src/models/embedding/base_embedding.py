@@ -10,7 +10,7 @@ class BaseEmbeddingModel(ABC):
         pass
 
     @abstractmethod
-    def get_embeddings(self, texts: List[str], **kwargs) -> List[List[float]]:
+    def get_embeddings(self, texts: List[str], **kwargs):  # [B, Dim]
         pass
 
     @abstractmethod

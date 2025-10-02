@@ -1,6 +1,5 @@
 from typing import List
 
-from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer, AutoModel
 import torch
 import torch.nn.functional as F
@@ -25,6 +24,12 @@ class NormicEmbeddingModel(BaseEmbeddingModel):
 
         self.model = AutoModel.from_pretrained(model_name, **model_kwargs)
 
+
+        self.prompts = {
+            "search_query": "search_query: ",
+            "search_document": "search_document: ",
+        }
+
     @property
     def model_id(self) -> str:
         return f"Normic: {self.model_name}"
@@ -38,7 +43,8 @@ class NormicEmbeddingModel(BaseEmbeddingModel):
     def get_embeddings(self, texts: List[str], **kwargs):
         instruction: str = kwargs.get('instruction')
         if instruction is not None:
-            texts = [instruction + text for text in texts]
+            prefix = self.prompts[instruction]
+            texts = [prefix + text for text in texts]
 
         batch_dict = self.tokenizer(
             texts,
@@ -56,6 +62,11 @@ class NormicEmbeddingModel(BaseEmbeddingModel):
 
     def get_all_token_embeddings(self, texts: List[str], **kwargs):
 
+        instruction: str = kwargs.get('instruction')
+        if instruction is not None:
+            prefix = self.prompts[instruction]
+            texts = [prefix + text for text in texts]
+
         inputs = self.tokenizer(
             texts,
             padding=True,
@@ -63,6 +74,7 @@ class NormicEmbeddingModel(BaseEmbeddingModel):
             truncation=True
         ).to(self.model.device)
 
-        outputs = self.model(**inputs)
+        with torch.no_grad():
+            outputs = self.model(**inputs)
 
         return outputs
