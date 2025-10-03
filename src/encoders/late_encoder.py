@@ -38,8 +38,6 @@ class LateEncoder(BaseEncoder):
         if backbone_kwargs.get('model_name') == "jinaai/jina-embeddings-v2-small-en":
             self.tokenizer.model_max_length = 8192
 
-        self.tokenizer.model_max_length = 300
-
         self.model_max_length = self.tokenizer.model_max_length
         self.long_late_chunking_overlap_size = 256
 
@@ -89,40 +87,6 @@ class LateEncoder(BaseEncoder):
         chunk_spans[-1] = (chunk_spans[-1][0], chunk_spans[-1][1]+1)
 
         return chunk_spans
-
-
-    def _split_text_list(self, text_list: List[str], prefix) -> List[List[str]]:
-        """
-        split text list by model.model_max_length
-        """
-
-        sub_text_list = []
-
-        current_sub_list = []
-
-        prefix_length = len(self.tokenizer.encode(prefix, add_special_tokens=False))
-
-        current_length = prefix_length  # prefix_length
-
-        for text in text_list:
-
-            token_ids = self.tokenizer.encode(text, add_special_tokens=False)
-            token_len = len(token_ids)
-
-            if token_len > self.tokenizer.model_max_length:
-
-                if current_sub_list:
-                    pass
-
-                sub_text_list.append([text])
-
-            elif current_length + token_len > self.tokenizer.model_max_length:
-                pass
-            else:
-                pass
-
-
-        return sub_text_list
 
 
     def merge_text(self, text_list: List[str]) -> str:
