@@ -2,6 +2,7 @@ import os
 import json
 from typing import List
 from dataclasses import asdict
+import pickle
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -35,6 +36,21 @@ class JsonlSink:
             self.f.close()
         except:
             pass
+
+
+class PickleSink:
+    def __init__(self, path: str):
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+
+        if path.endswith(".pkl"):
+            self.path = path
+        else:
+            raise ValueError(f"Unsupported file type: {path}")
+
+    def write_batch(self, objs: List[ChunkEmbedding|QueryEmbedding]):
+
+        with open(self.path, "wb") as f:
+            pickle.dump(objs, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 

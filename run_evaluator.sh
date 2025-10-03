@@ -39,8 +39,8 @@ ENCODERS=(
 BACKBONES_MODELS=(
   "JinaaiV2|jinaai/jina-embeddings-v2-small-en|cosine"
   "JinaaiV3|jinaai/jina-embeddings-v3|cosine"
-  "Qwen3|Qwen/Qwen3-Embedding-0.6B|cosine"
   "Normic|nomic-ai/nomic-embed-text-v1|cosine"
+  "IntFloatE5|intfloat/multilingual-e5-large-instruct|cosine"
 )
 
 # Chunk run IDs to iterate

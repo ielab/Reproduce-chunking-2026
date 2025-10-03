@@ -118,6 +118,8 @@ class Paths:
         return os.path.join(self.er_dir(chunk_run_id, embed_run_id), "embeddings.jsonl.zst")
     def er_npz_dir(self, chunk_run_id: str, embed_run_id: str) -> str:
         return self.er_dir(chunk_run_id, embed_run_id)
+    def er_embeddings_pkl(self, chunk_run_id: str, embed_run_id: str) -> str:
+        return os.path.join(self.er_dir(chunk_run_id, embed_run_id), "embeddings.pkl")
 
     # Query Set
     def qs_dir(self, qsid: str) -> str:
@@ -136,6 +138,8 @@ class Paths:
         return os.path.join(self.q_embed_dir(qsid, qerid), "manifest.json")
     def q_embeddings_jsonl(self, qsid: str, qerid: str) -> str:
         return os.path.join(self.q_embed_dir(qsid, qerid), "embeddings.jsonl")
+    def q_embeddings_pkl(self, qsid: str, qerid: str) -> str:
+        return os.path.join(self.q_embed_dir(qsid, qerid), "embeddings.pkl")
 
 
 # --------------- manifest io ---------------

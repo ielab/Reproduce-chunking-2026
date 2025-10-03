@@ -6,7 +6,7 @@ import numpy as np
 from src.types import Chunk, Query, QueryEmbedding
 from src.registry import EMD_BACKBONE_REG
 from src.models.embedding.base_embedding import BaseEmbeddingModel
-from src.io.sink import JsonlSink
+from src.io.sink import PickleSink
 
 
 class BaseEncoder(ABC):
@@ -21,7 +21,7 @@ class BaseEncoder(ABC):
         backbone_cls = EMD_BACKBONE_REG.get(backbone)
 
         self.model: BaseEmbeddingModel = backbone_cls(**(backbone_kwargs or {}))
-        self._sink = JsonlSink(embed_sink_path) if embed_sink_path else None
+        self._sink = PickleSink(embed_sink_path) if embed_sink_path else None
 
     def encode_queries(self,
                        queries: List[Query],
@@ -43,7 +43,7 @@ class BaseEncoder(ABC):
         if pair is not None:
             call_kwargs[pair[0]] = pair[1]
 
-        query_sink = JsonlSink(query_sink_path) if query_sink_path else None
+        query_sink = PickleSink(query_sink_path) if query_sink_path else None
 
         for i in range(0, len(queries), batch_size):
             batch = queries[i:i + batch_size]

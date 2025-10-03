@@ -2,6 +2,7 @@ from typing import List, Generator
 
 from tqdm import tqdm
 import numpy as np
+import pickle
 
 from src.types import Chunk, Query, ChunkEmbedding, QueryEmbedding
 from src.io.jsonl_io import read_jsonl, read_jsonl_gz
@@ -53,3 +54,11 @@ def load_queries_embeddings(path: str) -> List[QueryEmbedding]:
     for r in read_jsonl(path):
         out.append(QueryEmbedding(**r))
     return out
+
+
+def load_pkl_embeddings(path: str) -> List[QueryEmbedding|ChunkEmbedding]:
+
+    with open(path, 'rb') as f:
+        loaded = pickle.load(f)
+
+    return loaded

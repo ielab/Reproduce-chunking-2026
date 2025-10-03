@@ -11,6 +11,7 @@ from src.registry import EMD_BACKBONE_REG
 class JinaaiEmbeddingModelV2(BaseEmbeddingModel):
     def __init__(self, model_name: str):
 
+        super().__init__(model_name)
         self.model_name = model_name
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
 
@@ -52,6 +53,7 @@ class JinaaiEmbeddingModelV2(BaseEmbeddingModel):
 class JinaaiEmbeddingModelV3(BaseEmbeddingModel):
     def __init__(self, model_name: str):
 
+        super().__init__(model_name)
         self.model_name = model_name
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
 

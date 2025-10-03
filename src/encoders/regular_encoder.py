@@ -6,7 +6,7 @@ import numpy as np
 from src.types import Chunk, ChunkEmbedding, Query
 from src.encoders.base_encoder import BaseEncoder
 from src.registry import ENCODER_REG, EMD_BACKBONE_REG
-from src.io.sink import JsonlSink
+from src.io.sink import PickleSink
 from src.models.embedding.base_embedding import BaseEmbeddingModel
 
 
@@ -24,7 +24,7 @@ class RegularEncoder(BaseEncoder):
         backbone_cls = EMD_BACKBONE_REG.get(backbone)
 
         self.model: BaseEmbeddingModel = backbone_cls(**(backbone_kwargs or {}))
-        self._sink = JsonlSink(embed_sink_path) if embed_sink_path else None
+        self._sink = PickleSink(embed_sink_path) if embed_sink_path else None
 
 
     def encode_passages(self,

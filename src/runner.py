@@ -111,7 +111,8 @@ def cmd_encoder(args: argparse.Namespace):
                          f"If you don't want to create query embedding files, please delete '--query' in the command line.")
 
     # embeddings_output_path = P.er_embeddings_jsonl(args.chunk_run_id, embd_run_id)
-    embeddings_output_path = P.er_embeddings_gzip(args.chunk_run_id, embd_run_id)
+    # embeddings_output_path = P.er_embeddings_gzip(args.chunk_run_id, embd_run_id)
+    embeddings_output_path = P.er_embeddings_pkl(args.chunk_run_id, embd_run_id)
     #
     init_kwargs = {
         "backbone": raw_e_kw['backbone'],
@@ -160,7 +161,8 @@ def cmd_encoder(args: argparse.Namespace):
         else:
             raise ValueError(f"{query_embedding_dir} already exists! Please remove it and try again.")
 
-        query_embeddings_output_path = P.q_embeddings_jsonl(args.query_run_id, query_embed_run_id)
+        # query_embeddings_output_path = P.q_embeddings_jsonl(args.query_run_id, query_embed_run_id)
+        query_embeddings_output_path = P.q_embeddings_pkl(args.query_run_id, query_embed_run_id)
 
 
         query_init_kwargs = {
@@ -195,17 +197,18 @@ def cmd_evaluator(args: argparse.Namespace):
 
     chunk_path = f"{args.source_path}/{args.dataset_name}/chunks/{args.chunk_run_id}/chunks.jsonl"
     query_path = f"{args.source_path}/{args.dataset_name}/queries/{args.query_run_id}/queries.jsonl"
-    chunk_embed_path = f"{args.source_path}/{args.dataset_name}/embeddings/{args.chunk_run_id}/{args.chunk_embedding_run_id}/embeddings.jsonl.gz"
-    query_embed_embed_path = f"{args.source_path}/{args.dataset_name}/query_embeddings/{args.query_run_id}/{args.query_embedding_run_id}/embeddings.jsonl"
+    chunk_embed_path = f"{args.source_path}/{args.dataset_name}/embeddings/{args.chunk_run_id}/{args.chunk_embedding_run_id}/embeddings.pkl"
+    query_embed_embed_path = f"{args.source_path}/{args.dataset_name}/query_embeddings/{args.query_run_id}/{args.query_embedding_run_id}/embeddings.pkl"
 
     # load chunks, queries, chunk embeddings and query embeddings
     print('Load chunks, queries, chunk embeddings and query embeddings')
     chunks = load_chunks(chunk_path)
     queries = load_queries(query_path)
-    chunk_embs = list(load_embeddings(chunk_embed_path))
+    # chunk_embs = list(load_embeddings(chunk_embed_path))
+    chunk_embs = load_pkl_embeddings(chunk_embed_path)
 
-    query_embs = load_queries_embeddings(query_embed_embed_path)
-
+    # query_embs = load_queries_embeddings(query_embed_embed_path)
+    query_embs = load_pkl_embeddings(query_embed_embed_path)
     print('Loading time:', time.perf_counter() - start)
 
     mid = time.perf_counter()

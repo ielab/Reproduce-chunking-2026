@@ -19,7 +19,8 @@ from src.io.loaders import (
     load_chunks,
     load_queries,
     load_embeddings,
-    load_queries_embeddings
+    load_queries_embeddings,
+    load_pkl_embeddings
 )
 
 from src.io.jsonl_io import write_evaluation_jsonl

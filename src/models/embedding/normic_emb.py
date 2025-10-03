@@ -13,6 +13,8 @@ from src.registry import EMD_BACKBONE_REG
 class NormicEmbeddingModel(BaseEmbeddingModel):
     def __init__(self, model_name: str):
 
+        super().__init__(model_name)
+
         self.model_name = model_name
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
 

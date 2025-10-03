@@ -1,8 +1,23 @@
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Dict
+
+import torch
+from transformers import AutoTokenizer, AutoModel
+from transformers.tokenization_utils_base import BatchEncoding
 
 
 class BaseEmbeddingModel(ABC):
+
+    def __init__(self, model_name: str):
+
+        model_kwargs = {"trust_remote_code": True}
+        if torch.cuda.is_available():
+            model_kwargs["attn_implementation"] = "flash_attention_2"
+            model_kwargs["torch_dtype"] = torch.float16
+            model_kwargs["device_map"] = "auto"
+
+        self.model = AutoModel.from_pretrained(model_name, **model_kwargs)
+
 
     @property
     @abstractmethod
@@ -16,4 +31,13 @@ class BaseEmbeddingModel(ABC):
     @abstractmethod
     def get_all_token_embeddings(self, texts: List[str], **kwargs):
         pass
+
+    def get_embeddings_for_inputs(self, inputs: Dict, **kwargs):
+
+        with torch.no_grad():
+
+            inputs = BatchEncoding(inputs).to(self.model.device)
+            outputs = self.model(**inputs)
+
+        return outputs
 
