@@ -77,7 +77,7 @@ class QutenQAEvaluator(BaseEvaluator):
         chunk_id2text = {c.chunk_id:c.text for c in chunks}
         ranked_relevance_dict: Dict[str: List[int]] = {}
 
-        for query in queries:
+        for query in tqdm(queries, desc="Calculating GutenQA Metrics"):
 
             query_id = query.query_id
             re_chunk_list = [chunk_id2text.get(c_id) for c_id, _ in ranking_result.get(query_id, [])]
@@ -111,7 +111,7 @@ class QutenQAEvaluator(BaseEvaluator):
         print(final_dcg_dict)
         print(final_recall_dict)
 
-        return {'dcg': final_dcg_dict, 'recall': final_recall_dict, 'per_query_eval': per_query_eval}
+        return {'dcg': final_dcg_dict, 'recall': final_recall_dict, 'per_query_eval': per_query_eval, 'ranking_results': ranking_result}
 
 
 

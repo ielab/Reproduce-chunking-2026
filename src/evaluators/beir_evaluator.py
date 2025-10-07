@@ -4,6 +4,7 @@ from collections import defaultdict
 import numpy as np
 import pandas as pd
 from beir.retrieval.evaluation import EvaluateRetrieval
+from tqdm import tqdm
 
 from src.evaluators.base_evaluator import BaseEvaluator
 from src.registry import EVALUATOR_REG
@@ -73,7 +74,7 @@ class BeirEvaluator(BaseEvaluator):
 
         results: Dict[str, Dict[str, float]] = {}
 
-        for i, query_id in enumerate(query_id_list):
+        for i, query_id in tqdm(enumerate(query_id_list), total=len(query_id_list), desc="Ranking"):
             scores = similarity_matrix[i, :]
             df = pd.DataFrame({
                 'doc_id': doc_id_list,
@@ -101,11 +102,22 @@ class BeirEvaluator(BaseEvaluator):
         retriever = EvaluateRetrieval()
         ndcg, _map, recall, precision = retriever.evaluate(qrels, ranking_results, self.k_values)
 
+        # Calculate per-query scores
         per_query_eval = {}
-        for q_id, _ in qrels.items():
-            per_query_eval[q_id] = retriever.evaluate_custom(qrels, ranking_results, self.k_values, q_id)
+        for q_id in qrels.keys():
+            qrels_single = {q_id: qrels[q_id]}
+            results_single = {q_id: ranking_results.get(q_id, {})}
+
+            ndcg_q, _, recall_q, _ = retriever.evaluate(qrels_single, results_single, self.k_values)
+            
+            query_scores = {}
+            for k in self.k_values:
+                query_scores[f"NDCG@{k}"] = ndcg_q.get(f"NDCG@{k}", 0)
+                query_scores[f"Recall@{k}"] = recall_q.get(f"Recall@{k}", 0)
+            
+            per_query_eval[q_id] = query_scores
 
         print(ndcg)
         print(recall)
 
-        return {'ndcg': ndcg, 'recall': recall, 'per_query_eval': per_query_eval}
+        return {'ndcg': ndcg, 'recall': recall, 'per_query_eval': per_query_eval, 'ranking_results': ranking_results}

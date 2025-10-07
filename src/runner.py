@@ -11,6 +11,7 @@ from src.chunkers import BaseChunker
 from src.encoders import BaseEncoder
 from src.evaluators import BaseEvaluator
 from src.io import *
+from src.io.sink import write_trec_file
 
 
 API_KEY = None
@@ -241,17 +242,31 @@ def cmd_evaluator(args: argparse.Namespace):
                        chunk_embeddings=chunk_embs
                        )
 
-    # save eval result
-    save_path = 'src/results/result.jsonl'
-    info = {'dataset': args.dataset_name,
-            'chunker': args.chunk_run_id,
-            'encoder': args.chunk_embedding_run_id.split('-')[0],
-            'embedding_model': '-'.join(args.chunk_embedding_run_id.split('-')[1:]),}
+    # Create the output directory structure
+    base_results_dir = os.path.join(args.source_path, args.dataset_name, 'results', args.chunk_run_id, args.chunk_embedding_run_id)
+    os.makedirs(base_results_dir, exist_ok=True)
 
-    results = {**info, **results}
-    write_evaluation_jsonl(save_path, results)
-    print(f'[evaluation] wrote -> {save_path}')
-    # print(results)
+    # Save TREC file
+    ranking_results = results.pop('ranking_results')
+    trec_file_path = os.path.join(base_results_dir, "result.trec")
+    write_trec_file(trec_file_path, ranking_results, args.chunk_embedding_run_id, top_k=args.top_k)
+    print(f'[TREC file] wrote -> {trec_file_path}')
+
+    # Save per-query evaluation results in metric.eval format
+    eval_file_path = os.path.join(base_results_dir, "metric.eval")
+    per_query_eval = results.pop('per_query_eval')
+    
+    with open(eval_file_path, 'w') as f:
+        for query_id, query_scores in per_query_eval.items():
+            if query_scores is None:
+                print(f"Warning: No scores found for query_id '{query_id}'. Skipping.")
+                continue
+            for metric_name, value in query_scores.items():
+                # The metric names from beir can be complex, let's clean them up
+                cleaned_metric_name = metric_name.replace("NDCG@", "nDCG@")
+                f.write(f"{query_id} {cleaned_metric_name} {value}\n")
+    
+    print(f'[evaluation] wrote -> {eval_file_path}')
 
     print('Eval time:', time.perf_counter() - mid)
 
@@ -308,7 +323,7 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Retrieve in a document or in all corpus")
     peval.add_argument("--similarity", choices=['cosine', 'dot'])
     peval.add_argument("--source_path", required=True)
-    peval.add_argument("--output_folder", required=True)
+    peval.add_argument("--top_k", type=int, default=100, help="Number of top documents to save in TREC file.")
     peval.set_defaults(func=cmd_evaluator)
 
 
@@ -328,13 +343,4 @@ if __name__ == '__main__':
     print(sys.argv[1:])
     main(sys.argv[1:])
 
-)
-
-    return args.func(args)
-
-
-if __name__ == '__main__':
-
-    print(sys.argv[1:])
-    main(sys.argv[1:])
 

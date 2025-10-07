@@ -96,7 +96,7 @@ class SimpleRanker:
 
             range_in_chunk = self._get_book_range(self.c_chunk_id_list)
 
-            for book_id, position_idx in self._get_book_range(query_ids).items():
+            for book_id, position_idx in tqdm(self._get_book_range(query_ids).items(), desc="Ranking (Document Scope)"):
                 start_idx, end_idx = position_idx['start'], position_idx['end']
 
                 query_ids_sub = query_ids[start_idx:end_idx]

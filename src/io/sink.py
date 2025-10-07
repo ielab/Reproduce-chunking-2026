@@ -123,3 +123,19 @@ class JsonlZstSink:
         except Exception:
             pass
 
+
+def write_trec_file(path: str, results: dict, run_name: str, top_k: int = 1000):
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w") as f:
+        for query_id, doc_scores in results.items():
+            # doc_scores can be a dict {doc_id: score} or a list of tuples [(doc_id, score)]
+            if isinstance(doc_scores, dict):
+                # Sort items by score descending
+                scores_list = sorted(doc_scores.items(), key=lambda item: item[1], reverse=True)
+            else:  # it's a list of tuples
+                scores_list = doc_scores
+
+            for rank, (doc_id, score) in enumerate(scores_list[:top_k]):
+                f.write(f"{query_id} Q0 {doc_id} {rank + 1} {score} {run_name}\n")
+
+

@@ -77,11 +77,21 @@ for CHUNK_RUN_ID in "${CHUNK_RUN_IDS[@]}"; do
             IFS="|" read -r BACKBONE MODEL SIMILARITY <<<"$bm"
             MODEL_SUFFIX="${MODEL##*/}"
             CHUNK_EMBEDDING_ID="${ENCODER}-${MODEL_SUFFIX}"
+            # Query embeddings are based on the model only, not the encoder type
             QUERY_EMBEDDING_ID="${MODEL_SUFFIX}"
+
+            # Construct the expected output file path
+            METRIC_FILE="$OUTPUT_FOLDER/$DATASET/results/$CHUNK_RUN_ID/$CHUNK_EMBEDDING_ID/metric.eval"
 
             echo "Pair: chunk=$CHUNK_EMBEDDING_ID | query=$QUERY_EMBEDDING_ID"
 
             for SCOPE in "${SCOPE_OPTIONS[@]}"; do
+                # Check if the metric file already exists
+                if [ -f "$METRIC_FILE" ]; then
+                    echo ">>> [$(timestamp)] Skipping: Metric file already exists at $METRIC_FILE"
+                    continue
+                fi
+
                 CMD=(
                   python -m src.runner evaluator
                   --dataset_name "$DATASET"
@@ -92,6 +102,7 @@ for CHUNK_RUN_ID in "${CHUNK_RUN_IDS[@]}"; do
                   --source_path "$OUTPUT_FOLDER"
                   --similarity "$SIMILARITY"
                   --scope "$SCOPE"
+                  --top_k 100
                 )
 
 
