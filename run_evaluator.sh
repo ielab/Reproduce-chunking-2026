@@ -6,6 +6,8 @@ OUTPUT_FOLDER="src/chunked_output"
 # if output folder doesn't exist, create it
 mkdir -p "$OUTPUT_FOLDER"
 
+dataset_index=$1
+
 # Datasets
 DATASETS=(
   "GutenQA"
@@ -16,6 +18,8 @@ DATASETS=(
   "arguana"
   "scidocs"
 )
+
+DATASET="${DATASETS[$dataset_index]:-GutenQA}"
 
 # Encoders
 ENCODERS=(
