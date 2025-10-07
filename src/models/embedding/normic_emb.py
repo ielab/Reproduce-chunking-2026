@@ -48,7 +48,7 @@ class NormicEmbeddingModel(BaseEmbeddingModel):
 
         embeddings = self.mean_pooling(outputs, batch_dict['attention_mask'])
         embeddings = F.normalize(embeddings, p=2, dim=1)
-        return embeddings.cpu().numpy()
+        return embeddings.detach().cpu().numpy()
 
     def get_all_token_embeddings(self, texts: List[str], **kwargs):
 

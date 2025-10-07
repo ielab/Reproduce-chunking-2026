@@ -19,10 +19,11 @@ class BaseEmbeddingModel(ABC):
             model_kwargs["torch_dtype"] = torch.float16
             model_kwargs["device_map"] = "auto"
         try:
-            self.model = AutoModel.from_pretrained(model_name, **model_kwargs)
+            self.model = AutoModel.from_pretrained(model_name, **model_kwargs).cuda()
         except Exception as e:
-            self.model = AutoModel.from_pretrained(model_name, trust_remote_code=True, torch_dtype=torch.float16, device_map="auto")
+            self.model = AutoModel.from_pretrained(model_name, trust_remote_code=True, torch_dtype=torch.float16, device_map="auto").cuda()
 
+        print(f"Loaded model {self.model_name} on {self.model.device}")
     @property
     @abstractmethod
     def model_id(self) -> str:
