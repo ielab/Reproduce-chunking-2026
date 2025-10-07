@@ -1,6 +1,7 @@
 from typing import List, Dict
 from collections import defaultdict
 import numpy as np
+from tqdm import tqdm
 
 from src.evaluators.base_evaluator import BaseEvaluator
 from src.registry import EVALUATOR_REG

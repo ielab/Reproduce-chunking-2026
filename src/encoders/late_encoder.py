@@ -4,6 +4,7 @@ from tqdm import tqdm
 import numpy as np
 from transformers import AutoTokenizer
 import torch
+from torch.nn.utils.rnn import pad_sequence
 
 from src.types import Chunk, ChunkEmbedding, Query
 from src.encoders.base_encoder import BaseEncoder
@@ -48,6 +49,7 @@ class LateEncoder(BaseEncoder):
     def _get_document_range_by_doc_id(doc_id_list: List[str]) -> Dict[str, Dict[str, int]]:
         """
         For this method, we must ensure that chunks split from one document have the same doc id.
+        :return {doc_id: {'start': int, 'end': int}, ...}
         """
 
         document_range = {}
@@ -96,52 +98,6 @@ class LateEncoder(BaseEncoder):
 
         return self.chunk_joint_symbol.join(text_list)
 
-
-    def _split_doc_chunks(self, doc_chunks: List[Chunk], prefix: str) -> List[List[Chunk]]:
-        """
-        This function helps implement long-late-chunking.
-        Each model has model_max_length, so the long document should be split into segments, the input the of model
-         would not be truncation.
-        """
-
-        final_list = []
-
-        prefix_length = len(self.tokenizer.encode(prefix, add_special_tokens=False))
-
-        current_sub_list = []
-        current_length = prefix_length + 2  # prefix string, [CLS] and [SEP]
-
-        for chunk in doc_chunks:
-
-            token_ids = self.tokenizer.encode(chunk.text, add_special_tokens=False)
-            token_len = len(token_ids)
-
-            if token_len > self.tokenizer.model_max_length:
-                if current_sub_list:
-                    final_list.append(current_sub_list)
-                final_list.append([chunk])
-
-                current_sub_list = []
-                current_length = prefix_length
-
-            elif token_len + current_length > self.tokenizer.model_max_length:
-                if current_sub_list:
-                    final_list.append(current_sub_list)
-
-                current_sub_list = [chunk]
-                current_length = prefix_length + token_len
-
-            else:
-
-                current_sub_list.append(chunk)
-                current_length += token_len
-
-        if current_sub_list:
-            final_list.append(current_sub_list)
-
-        return final_list
-
-
     def late_encode(self,
                     texts: str,
                     call_kwargs:dict):
@@ -152,68 +108,112 @@ class LateEncoder(BaseEncoder):
 
         return vectors
 
+    @staticmethod
+    def _slice_one(model_inputs: Dict[str, List], window: Tuple[int, int, int]):
+        i, start, end = window
+        # Slice each field along sequence dim for the chosen example
+        sliced = {k: v[i][start:end] for k, v in model_inputs.items()}
+        return sliced
 
-    def long_late_encode(self,
-                    texts: str,
-                    prefix: str):
+    @staticmethod
+    def _pad_batch(sliced_list: List[Dict], pad_token_id: int = 0):
 
-        input_text = prefix + texts
-        # print(input_text)
+        keys = sliced_list[0].keys()
 
-        model_inputs = self.tokenizer(
-            input_text,
-            padding=True,
-            return_tensors="pt",
+        # Prepare sequences per key (list of 1D tensors)
+        seqs = {k: [d[k] for d in sliced_list] for k in keys}
+
+        input_ids_padded = pad_sequence(seqs["input_ids"], batch_first=True, padding_value=pad_token_id)
+
+        batch = {"input_ids": input_ids_padded}
+
+        # token_type_ids (if provided)
+        if "token_type_ids" in keys:
+            tti_padded = pad_sequence(
+                seqs["token_type_ids"], batch_first=True, padding_value=0
+            )
+            batch["token_type_ids"] = tti_padded
+
+        # attention_mask (prefer sliced original if present; otherwise derive)
+        if "attention_mask" in keys:
+            am_padded = pad_sequence(
+                seqs["attention_mask"], batch_first=True, padding_value=0
+            )
+            batch["attention_mask"] = am_padded
+        else:
+            batch["attention_mask"] = (input_ids_padded != pad_token_id).long()
+
+        # Keep original lengths so we can unpad results later
+        lengths = torch.tensor([d["input_ids"].shape[0] for d in sliced_list], device=input_ids_padded.device)
+        return batch, lengths
+
+
+    def long_late_encode(self, texts: List[str], prefix: str, batch_size: int):
+
+        input_texts = [prefix + t for t in texts]
+
+        model_inputs_no_padding = self.tokenizer(
+            input_texts,
+            padding=False,
             truncation=False,
         )
 
-        len_tokens = len(model_inputs['input_ids'][0])
+        model_inputs_no_padding = {k: [torch.tensor(x) for x in v] for k,v in model_inputs_no_padding.items()}
 
-        # print(f'len_tokens: {len_tokens}, model_max_length: {self.model_max_length}' )
+        len_tokens = [len(input_id) for input_id in model_inputs_no_padding['input_ids']]
 
         indices = []
 
-        for i in range(0, len_tokens, self.model_max_length - self.long_late_chunking_overlap_size):
+        for text_id, length in enumerate(len_tokens):
 
-            start = i
-            end = min(i + self.model_max_length, len_tokens)
-            indices.append((start, end))
+            for i in range(0, length, self.model_max_length - self.long_late_chunking_overlap_size):
+                start = i
+                end = min(i + self.model_max_length, length)
+                indices.append((text_id, start, end))
 
-        sub_output = []
+        text_id2embedding = {}
 
-        for start, end in indices:
+        for i in tqdm(range(0, len(indices), batch_size)):
 
-            batch_inputs = {k: v[:, start:end] for k,v in model_inputs.items()}
+            sub_indices = indices[i:i+batch_size]
 
-            last_state = self.model.get_embeddings_for_inputs(inputs=batch_inputs).last_hidden_state
+            sliced_list = [self._slice_one(model_inputs_no_padding, index_tuple) for index_tuple in sub_indices]
 
-            if start > 0:
-                sub_output.append(last_state[:, self.long_late_chunking_overlap_size:])
+            batch_inputs, lengths = self._pad_batch(sliced_list, pad_token_id=self.tokenizer.pad_token_id)
 
-            else:
-                sub_output.append(last_state)
 
-        vectors = torch.cat(sub_output, dim=1)  # [1, N, D]
-        vectors = vectors[0].detach().cpu().numpy()  # [N, D]
+            last_hidden_state = self.model.get_embeddings_for_inputs(inputs=batch_inputs).last_hidden_state
+
+            assert len(last_hidden_state) == len(sub_indices)
+
+            for b_idx, L in enumerate(lengths):
+
+                text_id, start, end = sub_indices[b_idx]
+
+                embedding = last_hidden_state[b_idx, :L]
+
+                if start > 0:
+                    embedding = embedding[self.long_late_chunking_overlap_size:, ]
+
+                if embedding.numel() != 0:
+                    text_id2embedding.setdefault(text_id, []).append(embedding)
+
+        vectors = []
+
+        for text_id, embeddings in text_id2embedding.items():
+
+            V = torch.cat(embeddings, dim=0)
+            V = V.detach().cpu().numpy()
+
+            vectors.append(V)
 
         return vectors
-
-    def whether_exceed_model_max_length(self, text: str):
-
-        token_ids = self.tokenizer(text, add_special_tokens=True)['input_ids']
-
-        if len(token_ids) > self.tokenizer.model_max_length:
-            return True
-        else:
-            return False
 
 
     def encode_passages(self,
                chunks: List[Chunk],
                batch_size: int=32,
                **kwargs):
-
-        output: List[ChunkEmbedding] = []
 
         prefix = ""
 
@@ -230,30 +230,41 @@ class LateEncoder(BaseEncoder):
         doc_id_list = [c.doc_id for c in chunks]
         doc_range = self._get_document_range_by_doc_id(doc_id_list)
 
-        for doc_id, position_idx in tqdm(doc_range.items()):
+        doc_chunks_list: List[List[Chunk]] = []
+        doc_chunk_spans_list: List[List[Tuple]] = []
+
+        text_list: List[str] = []
+
+        for doc_id, position_idx in doc_range.items():
 
             doc_start_idx, doc_end_idx = position_idx['start'], position_idx['end']
 
             doc_chunks = chunks[doc_start_idx:doc_end_idx]
             doc_text = [c.text for c in doc_chunks]
             doc_chunk_spans = self._get_chunk_span(doc_text, prefix=prefix)
-            texts = self.merge_text(doc_text)   # merge doc text
+            text = self.merge_text(doc_text)   # merge doc text
 
+            # here we need the pair (doc_chunks, doc_chunk_spans, texts)
+            # text is used for generating vector
+            # doc_chunks and doc_chunk_spans are used for create ChunkEmbedding
             assert len(doc_chunks) == len(doc_chunk_spans)
 
-            if self.whether_exceed_model_max_length(texts) is True:
+            doc_chunks_list.append(doc_chunks)
+            doc_chunk_spans_list.append(doc_chunk_spans)
+            text_list.append(text)
 
-                vectors = self.long_late_encode(texts, prefix=prefix)
-            else:
+        vectors: List[np.ndarray] = self.long_late_encode(texts=text_list, prefix=prefix, batch_size=batch_size)
 
-                vectors = self.late_encode(texts, call_kwargs=call_kwargs)
+        output: List[ChunkEmbedding] = []
 
-            assert (len(vectors) == doc_chunk_spans[-1][-1])
+        for doc_chunks, doc_chunk_spans, V in zip(doc_chunks_list, doc_chunk_spans_list, vectors):
+
+            assert (len(V) == doc_chunk_spans[-1][-1])
 
             for span, chunk in zip(doc_chunk_spans, doc_chunks):
                 start, end = span
 
-                chunk_vector = np.mean(vectors[start:end], axis=0)
+                chunk_vector = np.mean(V[start:end], axis=0)
 
                 if isinstance(chunk_vector, np.ndarray):
                     chunk_vector = chunk_vector.tolist()
@@ -276,55 +287,53 @@ class LateEncoder(BaseEncoder):
 
 if __name__ == '__main__':
 
-    # backbone = 'IntFloatE5'
-    # model_name = 'intfloat/multilingual-e5-large-instruct'
+    backbone = 'IntFloatE5'
+    model_name = 'intfloat/multilingual-e5-large-instruct'
 
     # backbone = 'JinaaiV2'
     # model_name = 'jinaai/jina-embeddings-v2-small-en'
 
-    backbone = "Normic"
-    model_name = "nomic-ai/nomic-embed-text-v1"
+    # backbone = "Normic"
+    # model_name = "nomic-ai/nomic-embed-text-v1"
+    #
+    # # backbone = "JinaaiV3"
+    # # model_name = "jinaai/jina-embeddings-v3"
+    #
+    passage_list = ['What is the current weather like today?',
+                    'What is your favourite food? I have three options: meat, fries and fish',]
 
-    # backbone = "JinaaiV3"
-    # model_name = "jinaai/jina-embeddings-v3"
-
-    passage_list = [
-        'How is the weather today?',
-        'What is the current weather like today?',
-        'Who are you?',
-    ]
+    # passage_list = ['How are you?']
+    # # passage_list = ['What is your favourite food? I have three options: meat, fries and fish']
     chunk_list = []
 
     for idx, p in enumerate(passage_list):
         c = Chunk(
-            doc_id=str(1),
+            doc_id=str(idx),
             chunk_id=str(idx),
             text=p,
         )
 
         chunk_list.append(c)
-
-    query_list =[]
-    for idx, p in enumerate(passage_list):
-        c = Query(
-            query_id=str(1),
-            text=p,
-        )
-
-        query_list.append(c)
-
+    #
+    # query_list =[]
+    # for idx, p in enumerate(passage_list):
+    #     c = Query(
+    #         query_id=str(1),
+    #         text=p,
+    #     )
+    #
+    #     query_list.append(c)
+    #
     encoder = LateEncoder(backbone,
                              embed_sink_path=None,
                              backbone_kwargs={'model_name': model_name})
-
-    test_output = encoder.encode_passages(chunk_list)
-    # test_output = encoder.encode_queries(query_list, query_sink_path=None)
-    # print(test_output)
-
-    vec1 = test_output[0].vector
-    vec2 = test_output[1].vector
+    #
+    print("batch: ==============")
+    batch_output = encoder.encode_passages(chunk_list)
+    #
+    vec1 = batch_output[0].vector
+    vec2 = batch_output[1].vector
     from sentence_transformers.util import cos_sim
-
-    print(backbone, model_name)
-
     print(cos_sim(vec1, vec2))
+
+
