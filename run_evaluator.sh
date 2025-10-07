@@ -17,18 +17,6 @@ DATASETS=(
   "scidocs"
 )
 
-# One query_run_id per dataset (fill these in!)
-declare -A QUERY_ID_BY_DATASET=(
-  ["GutenQA"]="20250923-160046-GutenQA-2266af06"
-  ["fiqa"]="20250923-161628-beir-cb5a96e3"
-  ["nfcorpus"]="20250923-161654-beir-8f3497a6"
-  ["scifact"]="20250923-161721-beir-a3c16da6"
-  ["trec-covid"]="20250923-161747-beir-a25ad74b"
-  ["arguana"]="20250923-161815-beir-70fb1edb"
-  ["scidocs"]="20250923-161839-beir-f4e9a453"
-)
-
-
 # Encoders
 ENCODERS=(
   "RegularEncoder"
@@ -46,45 +34,30 @@ BACKBONES_MODELS=(
 # Chunk run IDs to iterate
 CHUNK_RUN_IDS=(
   "ParagraphChunker"
-  "SentenceChunker"
-  "FixedSizeChunker"
-  "SemanticChunker"
-  "LumberChunker"
-  "Proposition"
+  #"SentenceChunker"
+  #"FixedSizeChunker"
+  #"SemanticChunker"
+  #"LumberChunker"
+  #"Proposition"
 )
 
 # ==============================
-
-
-# Generate embedding run IDs
-EMBEDDING_RUN_IDS=()
-for ENC in "${ENCODERS[@]}"; do
-  for MODEL in "${BACKBONES_MODELS[@]}"; do
-
-    # If model contains '/', keep only the part after it
-    MODEL_NAME="${MODEL##*/}"
-    EMBEDDING_RUN_IDS+=( "${ENC}-${MODEL_NAME}" )
-  done
-done
 
 # Dry run: set to 1 to only echo commands without executing
 DRYRUN=${DRYRUN:-0}
 
 timestamp() { date +"%Y-%m-%d %H:%M:%S"; }
 
-echo "[$(timestamp)] Starting encoder sweep…"
-echo "Datasets: ${DATASETS[*]}"
-echo "Encoders: ${ENCODERS[*]}"
-echo "Backbones/Models:"
-for bm in "${BACKBONES_MODELS[@]}"; do
-  IFS="|" read -r BB MN SIM <<<"$bm"
-  echo "  - $BB | $MN | $SIM "
-done
-
-
 # Matrix sweep
 for DATASET in "${DATASETS[@]}"; do
-    QUERY_RUN_ID="${QUERY_ID_BY_DATASET[$DATASET]:-}"
+    # Find the query run ID dynamically
+    QUERY_RUN_FOLDER=$(find "$OUTPUT_FOLDER/$DATASET/queries/" -mindepth 1 -maxdepth 1 -type d | head -n 1)
+    if [ -z "$QUERY_RUN_FOLDER" ]; then
+      echo "Error: No query run folder found for dataset $DATASET in $OUTPUT_FOLDER/$DATASET/queries/"
+      exit 1
+    fi
+    QUERY_RUN_ID=$(basename "$QUERY_RUN_FOLDER")
+    echo "Found Query Run ID for $DATASET: $QUERY_RUN_ID"
 
         # Scope options: GutenQA => document + corpus; others => corpus only
     if [[ "$DATASET" == "GutenQA" || "$DATASET" == "gutenqa" ]]; then
