@@ -66,11 +66,7 @@ BACKBONES_MODELS=(
 # Chunk run IDs to iterate (first one gets --query for that dataset)
 CHUNK_RUN_IDS=(
   "ParagraphChunker"
-  "SentenceChunker"
-  "FixedSizeChunker"
-  "SemanticChunker"
-  "LumberChunker"
-  "Proposition"
+
 )
 
 # ==============================

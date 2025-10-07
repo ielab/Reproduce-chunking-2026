@@ -10,14 +10,18 @@ class BaseEmbeddingModel(ABC):
 
     def __init__(self, model_name: str):
 
+        self.model_name = model_name
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         model_kwargs = {"trust_remote_code": True}
+
         if torch.cuda.is_available():
             model_kwargs["attn_implementation"] = "flash_attention_2"
             model_kwargs["torch_dtype"] = torch.float16
             model_kwargs["device_map"] = "auto"
-
-        self.model = AutoModel.from_pretrained(model_name, **model_kwargs)
-
+        try:
+            self.model = AutoModel.from_pretrained(model_name, **model_kwargs)
+        except Exception as e:
+            self.model = AutoModel.from_pretrained(model_name, trust_remote_code=True, torch_dtype=torch.float16, device_map="auto")
 
     @property
     @abstractmethod
