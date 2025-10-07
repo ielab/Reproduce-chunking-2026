@@ -96,6 +96,14 @@ class QutenQAEvaluator(BaseEvaluator):
                 dcg_dict[top_k].append(dcg)
                 recall_dict[top_k].append(recall)
 
+        per_query_eval = defaultdict(dict)
+        for top_k in self.k_values:
+            for i, (query_id, relevance) in enumerate(ranked_relevance_dict.items()):
+                dcg = compute_DCG(relevance[:top_k])
+                recall = compute_Recall(relevance[:top_k])
+                per_query_eval[query_id][f'DCG@{top_k}'] = dcg
+                per_query_eval[query_id][f'Recall@{top_k}'] = recall
+
         final_dcg_dict = {f'DCG@{k}': round(np.mean(v), 5) for k, v in dcg_dict.items()}
         final_recall_dict = {f'Recall@{k}': round(np.mean(v), 5) for k, v in recall_dict.items()}
 
@@ -103,7 +111,7 @@ class QutenQAEvaluator(BaseEvaluator):
         print(final_dcg_dict)
         print(final_recall_dict)
 
-        return {'dcg': final_dcg_dict, 'recall': final_recall_dict}
+        return {'dcg': final_dcg_dict, 'recall': final_recall_dict, 'per_query_eval': per_query_eval}
 
 
 

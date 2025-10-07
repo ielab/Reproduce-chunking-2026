@@ -101,7 +101,11 @@ class BeirEvaluator(BaseEvaluator):
         retriever = EvaluateRetrieval()
         ndcg, _map, recall, precision = retriever.evaluate(qrels, ranking_results, self.k_values)
 
+        per_query_eval = {}
+        for q_id, _ in qrels.items():
+            per_query_eval[q_id] = retriever.evaluate_custom(qrels, ranking_results, self.k_values, q_id)
+
         print(ndcg)
         print(recall)
 
-        return {'ndcg': ndcg, 'recall': recall}
+        return {'ndcg': ndcg, 'recall': recall, 'per_query_eval': per_query_eval}

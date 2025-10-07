@@ -308,6 +308,7 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Retrieve in a document or in all corpus")
     peval.add_argument("--similarity", choices=['cosine', 'dot'])
     peval.add_argument("--source_path", required=True)
+    peval.add_argument("--output_folder", required=True)
     peval.set_defaults(func=cmd_evaluator)
 
 
@@ -318,6 +319,16 @@ def main(argv: List[str]):
 
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    return args.func(args)
+
+
+if __name__ == '__main__':
+
+    print(sys.argv[1:])
+    main(sys.argv[1:])
+
+)
 
     return args.func(args)
 

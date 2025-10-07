@@ -52,57 +52,54 @@ DRYRUN=${DRYRUN:-0}
 
 timestamp() { date +"%Y-%m-%d %H:%M:%S"; }
 
-# Matrix sweep
-for DATASET in "${DATASETS[@]}"; do
-    # Find the query run ID dynamically
-    QUERY_RUN_FOLDER=$(find "$OUTPUT_FOLDER/$DATASET/queries/" -mindepth 1 -maxdepth 1 -type d | head -n 1)
-    if [ -z "$QUERY_RUN_FOLDER" ]; then
-      echo "Error: No query run folder found for dataset $DATASET in $OUTPUT_FOLDER/$DATASET/queries/"
-      exit 1
-    fi
-    QUERY_RUN_ID=$(basename "$QUERY_RUN_FOLDER")
-    echo "Found Query Run ID for $DATASET: $QUERY_RUN_ID"
+# Find the query run ID dynamically
+QUERY_RUN_FOLDER=$(find "$OUTPUT_FOLDER/$DATASET/queries/" -mindepth 1 -maxdepth 1 -type d | head -n 1)
+if [ -z "$QUERY_RUN_FOLDER" ]; then
+  echo "Error: No query run folder found for dataset $DATASET in $OUTPUT_FOLDER/$DATASET/queries/"
+  exit 1
+fi
+QUERY_RUN_ID=$(basename "$QUERY_RUN_FOLDER")
+echo "Found Query Run ID for $DATASET: $QUERY_RUN_ID"
 
-        # Scope options: GutenQA => document + corpus; others => corpus only
-    if [[ "$DATASET" == "GutenQA" || "$DATASET" == "gutenqa" ]]; then
-      SCOPE_OPTIONS=("document" "corpus")
-    else
-      SCOPE_OPTIONS=("corpus")
-    fi
+    # Scope options: GutenQA => document + corpus; others => corpus only
+if [[ "$DATASET" == "GutenQA" || "$DATASET" == "gutenqa" ]]; then
+  SCOPE_OPTIONS=("document" "corpus")
+else
+  SCOPE_OPTIONS=("corpus")
+fi
 
-    for CHUNK_RUN_ID in "${CHUNK_RUN_IDS[@]}"; do
+for CHUNK_RUN_ID in "${CHUNK_RUN_IDS[@]}"; do
 
-        for ENCODER in "${ENCODERS[@]}"; do
+    for ENCODER in "${ENCODERS[@]}"; do
 
-            for bm in "${BACKBONES_MODELS[@]}"; do
+        for bm in "${BACKBONES_MODELS[@]}"; do
 
-                IFS="|" read -r BACKBONE MODEL SIMILARITY <<<"$bm"
-                MODEL_SUFFIX="${MODEL##*/}"
-                CHUNK_EMBEDDING_ID="${ENCODER}-${MODEL_SUFFIX}"
-                QUERY_EMBEDDING_ID="${MODEL_SUFFIX}"
+            IFS="|" read -r BACKBONE MODEL SIMILARITY <<<"$bm"
+            MODEL_SUFFIX="${MODEL##*/}"
+            CHUNK_EMBEDDING_ID="${ENCODER}-${MODEL_SUFFIX}"
+            QUERY_EMBEDDING_ID="${MODEL_SUFFIX}"
 
-                echo "Pair: chunk=$CHUNK_EMBEDDING_ID | query=$QUERY_EMBEDDING_ID"
+            echo "Pair: chunk=$CHUNK_EMBEDDING_ID | query=$QUERY_EMBEDDING_ID"
 
-                for SCOPE in "${SCOPE_OPTIONS[@]}"; do
-                    CMD=(
-                      python -m src.runner evaluator
-                      --dataset_name "$DATASET"
-                      --chunk_run_id "$CHUNK_RUN_ID"
-                      --query_run_id "$QUERY_RUN_ID"
-                      --chunk_embedding_run_id "$CHUNK_EMBEDDING_ID"
-                      --query_embedding_run_id "$QUERY_EMBEDDING_ID"
-                      --source_path "$OUTPUT_FOLDER"
-                      --similarity "$SIMILARITY"
-                      --scope "$SCOPE"
-                    )
+            for SCOPE in "${SCOPE_OPTIONS[@]}"; do
+                CMD=(
+                  python -m src.runner evaluator
+                  --dataset_name "$DATASET"
+                  --chunk_run_id "$CHUNK_RUN_ID"
+                  --query_run_id "$QUERY_RUN_ID"
+                  --chunk_embedding_run_id "$CHUNK_EMBEDDING_ID"
+                  --query_embedding_run_id "$QUERY_EMBEDDING_ID"
+                  --source_path "$OUTPUT_FOLDER"
+                  --similarity "$SIMILARITY"
+                  --scope "$SCOPE"
+                )
 
 
-                    echo ">>> [$(timestamp)] dataset=$DATASET | encoder=$ENCODER | backbone=$BACKBONE | model=$MODEL_NAME | chunk=$CHUNK_RUN_ID | query=$QUERY_RUN_ID"
-                    echo "${CMD[@]}"
-                    if [[ "$DRYRUN" -eq 0 ]]; then
-                      "${CMD[@]}"
-                    fi
-                done
+                echo ">>> [$(timestamp)] dataset=$DATASET | encoder=$ENCODER | backbone=$BACKBONE | model=$MODEL_NAME | chunk=$CHUNK_RUN_ID | query=$QUERY_RUN_ID"
+                echo "${CMD[@]}"
+                if [[ "$DRYRUN" -eq 0 ]]; then
+                  "${CMD[@]}"
+                fi
             done
         done
     done
