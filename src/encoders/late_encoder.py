@@ -12,6 +12,9 @@ from src.registry import ENCODER_REG, EMD_BACKBONE_REG
 from src.io.sink import PickleSink
 from src.models.embedding.base_embedding import BaseEmbeddingModel
 
+import os
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 
 @ENCODER_REG.register('LateEncoder')
 class LateEncoder(BaseEncoder):
@@ -109,8 +112,8 @@ class LateEncoder(BaseEncoder):
         return vectors
 
     @staticmethod
-    def _slice_one(model_inputs: Dict[str, List], window: Tuple[int, int, int]):
-        i, start, end = window
+    def _slice_one(model_inputs: Dict[str, List], window: Tuple[int, int, int, int]):
+        i, start, end, _ = window
         # Slice each field along sequence dim for the chosen example
         sliced = {k: v[i][start:end] for k, v in model_inputs.items()}
         return sliced
@@ -147,31 +150,92 @@ class LateEncoder(BaseEncoder):
         lengths = torch.tensor([d["input_ids"].shape[0] for d in sliced_list], device=input_ids_padded.device)
         return batch, lengths
 
+    @staticmethod
+    def add_special_tokens(sliced_list: List[Dict],
+                       prefix_token_ids: torch.Tensor,
+                       cls_token_id: torch.Tensor,
+                       sep_token_id: torch.Tensor):
 
-    def long_late_encode(self, texts: List[str], prefix: str, batch_size: int):
+        new_sliced_list = []
 
-        input_texts = [prefix + t for t in texts]
+        if prefix_token_ids.numel() > 0:
+            prefix_special_token_ids = torch.cat([cls_token_id, prefix_token_ids])
+        else:
+            prefix_special_token_ids = cls_token_id
+
+        for data in sliced_list:
+
+            new_data = {'input_ids': torch.cat([
+                prefix_special_token_ids,
+                data['input_ids'],
+                sep_token_id
+            ])}
+
+            if 'token_type_ids' in data:
+                new_data['token_type_ids'] = torch.cat([
+                    torch.tensor([0] * len(prefix_special_token_ids)),
+                    data['token_type_ids'],
+                    torch.tensor([0])
+                ])
+
+            if 'attention_mask' in data:
+                new_data['attention_mask'] = torch.cat([
+                    torch.tensor([1] * len(prefix_special_token_ids)),
+                    data['attention_mask'],
+                    torch.tensor([1])
+                ])
+
+            new_sliced_list.append(new_data)
+
+        return new_sliced_list
+
+    def long_late_encode_with_prefix(self, texts: List[str], prefix: str, batch_size: int):
+        """
+        the logic:
+        1. tokenize the texts
+        2. record cls, sep, prefix
+        3. cut the text into sub_texts with max_model_length - overlap_size - prefix_length - cls - sep
+        4. combine each text into new sub_text, new_sub_text = cls + prefix + overlap_text + sub_text + sep
+        5. add padding, generate the input of the model
+        6. feed the input to the model, get embeddings
+        7. get the original text embedding,
+            - if start = 0 and end = last -> text_embedding = embedding
+            - if start = 0 and end != last -> text_embedding[:-1,:]
+            - if start != 0 and end = last -> text_embedding[cls+prefix_length + overlap_size:,:]
+            if start != 0 and end != last -> text_embedding[cls+prefix_length + overlap_size:-1,:]
+        """
 
         model_inputs_no_padding = self.tokenizer(
-            input_texts,
+            texts,
             padding=False,
             truncation=False,
+            add_special_tokens=False,
         )
 
         model_inputs_no_padding = {k: [torch.tensor(x) for x in v] for k,v in model_inputs_no_padding.items()}
 
         len_tokens = [len(input_id) for input_id in model_inputs_no_padding['input_ids']]
 
+        prefix_token_ids = self.tokenizer(prefix, add_special_tokens=False, return_tensors='pt')['input_ids'][0]
+        prefix_token_len = len(prefix_token_ids)
+
+        special_tokens_len = prefix_token_len + 2
+
         indices = []
 
         for text_id, length in enumerate(len_tokens):
 
-            for i in range(0, length, self.model_max_length - self.long_late_chunking_overlap_size):
+            for i in range(0, length, self.model_max_length - self.long_late_chunking_overlap_size - special_tokens_len):
                 start = i
-                end = min(i + self.model_max_length, length)
-                indices.append((text_id, start, end))
+                end = min(i + self.model_max_length - special_tokens_len, length)
+                indices.append((text_id, start, end, length))
+                if end == length:
+                    break
 
         text_id2embedding = {}
+
+        cls_token_tensor = torch.tensor([self.tokenizer.cls_token_id])
+        sep_token_tensor = torch.tensor([self.tokenizer.sep_token_id])
 
         for i in tqdm(range(0, len(indices), batch_size)):
 
@@ -179,8 +243,13 @@ class LateEncoder(BaseEncoder):
 
             sliced_list = [self._slice_one(model_inputs_no_padding, index_tuple) for index_tuple in sub_indices]
 
-            batch_inputs, lengths = self._pad_batch(sliced_list, pad_token_id=self.tokenizer.pad_token_id)
+            add_special_tokens_sliced_list = self.add_special_tokens(sliced_list,
+                                                                prefix_token_ids=prefix_token_ids,
+                                                                cls_token_id=cls_token_tensor,
+                                                                sep_token_id=sep_token_tensor)
 
+
+            batch_inputs, lengths = self._pad_batch(add_special_tokens_sliced_list, pad_token_id=self.tokenizer.pad_token_id)
 
             last_hidden_state = self.model.get_embeddings_for_inputs(inputs=batch_inputs).last_hidden_state
 
@@ -188,12 +257,18 @@ class LateEncoder(BaseEncoder):
 
             for b_idx, L in enumerate(lengths):
 
-                text_id, start, end = sub_indices[b_idx]
+                text_id, start, end, text_L = sub_indices[b_idx]
 
                 embedding = last_hidden_state[b_idx, :L]
 
-                if start > 0:
-                    embedding = embedding[self.long_late_chunking_overlap_size:, ]
+                if start == 0 and end == text_L:
+                    pass
+                elif start == 0 and end != text_L:
+                    embedding = embedding[:-1, ]
+                elif start != 0 and end == text_L:
+                    embedding = embedding[self.long_late_chunking_overlap_size + prefix_token_len + 1:, ]
+                else:
+                    embedding = embedding[self.long_late_chunking_overlap_size + prefix_token_len + 1:-1, ]
 
                 if embedding.numel() != 0:
                     text_id2embedding.setdefault(text_id, []).append(embedding)
@@ -253,7 +328,7 @@ class LateEncoder(BaseEncoder):
             doc_chunk_spans_list.append(doc_chunk_spans)
             text_list.append(text)
 
-        vectors: List[np.ndarray] = self.long_late_encode(texts=text_list, prefix=prefix, batch_size=batch_size)
+        vectors: List[np.ndarray] = self.long_late_encode_with_prefix(texts=text_list, prefix=prefix, batch_size=batch_size)
 
         output: List[ChunkEmbedding] = []
 
@@ -287,20 +362,21 @@ class LateEncoder(BaseEncoder):
 
 if __name__ == '__main__':
 
-    backbone = 'IntFloatE5'
-    model_name = 'intfloat/multilingual-e5-large-instruct'
+    # backbone = 'IntFloatE5'
+    # model_name = 'intfloat/multilingual-e5-large-instruct'
 
     # backbone = 'JinaaiV2'
     # model_name = 'jinaai/jina-embeddings-v2-small-en'
 
-    # backbone = "Normic"
-    # model_name = "nomic-ai/nomic-embed-text-v1"
+    backbone = "Normic"
+    model_name = "nomic-ai/nomic-embed-text-v1"
     #
     # # backbone = "JinaaiV3"
     # # model_name = "jinaai/jina-embeddings-v3"
     #
     passage_list = ['What is the current weather like today?',
-                    'What is your favourite food? I have three options: meat, fries and fish',]
+         'What is your favourite food? I have three options: meat, fries and fish, What is your favourite food? I have three options: meat, fries and fish',]
+
 
     # passage_list = ['How are you?']
     # # passage_list = ['What is your favourite food? I have three options: meat, fries and fish']
