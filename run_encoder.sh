@@ -51,7 +51,7 @@ echo "Found Query Run ID for $DATASET: $QUERY_RUN_ID"
 
 # Encoders
 ENCODERS=(
-  #"RegularEncoder"
+  "RegularEncoder"
   "LateEncoder"
 )
 

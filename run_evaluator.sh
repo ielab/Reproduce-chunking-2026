@@ -37,8 +37,8 @@ BACKBONES_MODELS=(
 
 # Chunk run IDs to iterate
 CHUNK_RUN_IDS=(
-  "ParagraphChunker"
-  #"SentenceChunker"
+  #"ParagraphChunker"
+  "SentenceChunker"
   #"FixedSizeChunker"
   #"SemanticChunker"
   #"LumberChunker"
