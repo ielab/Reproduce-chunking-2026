@@ -155,39 +155,38 @@ def cmd_encoder(args: argparse.Namespace):
     if args.query is True:
 
         query_embed_run_id = build_query_embedding_run_id(qs_id=args.query_run_id, encoder=e_all_params)
-
         query_embedding_dir = P.q_embed_dir(args.query_run_id, query_embed_run_id)
-        if not os.path.exists(query_embedding_dir):
-            os.makedirs(query_embedding_dir)
+
+        if os.path.exists(query_embedding_dir):
+            print(f"[query embeddings] Skipping: {query_embedding_dir} already exists.")
         else:
-            raise ValueError(f"{query_embedding_dir} already exists! Please remove it and try again.")
+            print(f"[query embeddings] Creating directory: {query_embedding_dir}")
+            os.makedirs(query_embedding_dir)
 
-        # query_embeddings_output_path = P.q_embeddings_jsonl(args.query_run_id, query_embed_run_id)
-        query_embeddings_output_path = P.q_embeddings_pkl(args.query_run_id, query_embed_run_id)
+            query_embeddings_output_path = P.q_embeddings_pkl(args.query_run_id, query_embed_run_id)
 
-
-        query_init_kwargs = {
-            "backbone": raw_e_kw['backbone'],
-            "query_embeddings_output_path": query_embeddings_output_path,
-            "backbone_kwargs": {
-            "model_name": raw_e_kw['model_name']
+            query_init_kwargs = {
+                "backbone": raw_e_kw['backbone'],
+                "query_embeddings_output_path": query_embeddings_output_path,
+                "backbone_kwargs": {
+                "model_name": raw_e_kw['model_name']
+                }
             }
-        }
 
-        query_path = f"{args.output_folder}/{args.dataset_name}/queries/{args.query_run_id}/queries.jsonl"
-        queries = load_queries(query_path)
-        encoder.encode_queries(queries=queries,
-                               query_sink_path=query_embeddings_output_path,
-                               batch_size=raw_e_kw['batch_size'],)
+            query_path = f"{args.output_folder}/{args.dataset_name}/queries/{args.query_run_id}/queries.jsonl"
+            queries = load_queries(query_path)
+            encoder.encode_queries(queries=queries,
+                                   query_sink_path=query_embeddings_output_path,
+                                   batch_size=raw_e_kw['batch_size'],)
 
-        write_query_embedding_manifest(
-            paths=P,
-            query_run_id=args.query_run_id,
-            q_embed_id=query_embed_run_id,
-            encoder=query_init_kwargs | call_kwargs,
-        )
+            write_query_embedding_manifest(
+                paths=P,
+                query_run_id=args.query_run_id,
+                q_embed_id=query_embed_run_id,
+                encoder=query_init_kwargs | call_kwargs,
+            )
 
-        print(f'[query embeddings] wrote -> {query_embeddings_output_path}')
+            print(f'[query embeddings] wrote -> {query_embeddings_output_path}')
 
 
 def cmd_evaluator(args: argparse.Namespace):

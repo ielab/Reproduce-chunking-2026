@@ -51,21 +51,26 @@ echo "Found Query Run ID for $DATASET: $QUERY_RUN_ID"
 
 # Encoders
 ENCODERS=(
-  "RegularEncoder"
+  #"RegularEncoder"
   "LateEncoder"
 )
 
 # Backbones and their model names (pair format BACKBONE|MODEL_NAME)
 BACKBONES_MODELS=(
-  #"JinaaiV2|jinaai/jina-embeddings-v2-small-en"
-  #"JinaaiV3|jinaai/jina-embeddings-v3"
-  #"Normic|nomic-ai/nomic-embed-text-v1"
+  "JinaaiV2|jinaai/jina-embeddings-v2-small-en"
+  "JinaaiV3|jinaai/jina-embeddings-v3"
+  "Normic|nomic-ai/nomic-embed-text-v1"
   "IntFloatE5|intfloat/multilingual-e5-large-instruct"
 )
 
 # Chunk run IDs to iterate (first one gets --query for that dataset)
 CHUNK_RUN_IDS=(
   "ParagraphChunker"
+  "SentenceChunker"
+  "FixedSizeChunker"
+  "SemanticChunker"
+  "LumberChunker"
+  "Proposition"
 
 )
 

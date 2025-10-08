@@ -81,7 +81,8 @@ for CHUNK_RUN_ID in "${CHUNK_RUN_IDS[@]}"; do
             QUERY_EMBEDDING_ID="${MODEL_SUFFIX}"
 
             # Construct the expected TREC file path as an indicator of completion
-            TREC_FILE="$OUTPUT_FOLDER/$DATASET/results/$CHUNK_RUN_ID/$CHUNK_EMB EDDING_ID/result.trec"
+            TREC_FILE="$OUTPUT_FOLDER/$DATASET/results/$CHUNK_RUN_ID/$CHUNK_EMBEDDING_ID/result.trec"
+            echo "Checking for TREC file at: $TREC_FILE"
 
             echo "Pair: chunk=$CHUNK_EMBEDDING_ID | query=$QUERY_EMBEDDING_ID"
 
