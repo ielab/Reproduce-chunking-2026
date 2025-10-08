@@ -100,20 +100,24 @@ class BeirEvaluator(BaseEvaluator):
         qrels = {q.query_id:q.qrels for q in queries}
 
         retriever = EvaluateRetrieval()
+        # Evaluate all queries at once for the aggregated score
         ndcg, _map, recall, precision = retriever.evaluate(qrels, ranking_results, self.k_values)
 
-        # Calculate per-query scores
+        # Calculate per-query scores by iterating
         per_query_eval = {}
-        for q_id in qrels.keys():
+        for q_id in tqdm(qrels.keys(), desc="Calculating Per-Query Metrics"):
             qrels_single = {q_id: qrels[q_id]}
             results_single = {q_id: ranking_results.get(q_id, {})}
 
+            # Evaluate each query individually
             ndcg_q, _, recall_q, _ = retriever.evaluate(qrels_single, results_single, self.k_values)
             
             query_scores = {}
-            for k in self.k_values:
-                query_scores[f"NDCG@{k}"] = ndcg_q.get(f"NDCG@{k}", 0)
-                query_scores[f"Recall@{k}"] = recall_q.get(f"Recall@{k}", 0)
+            # Check if the results are valid before processing
+            if ndcg_q and recall_q:
+                for k in self.k_values:
+                    query_scores[f"NDCG@{k}"] = ndcg_q.get(f"NDCG@{k}", 0.0)
+                    query_scores[f"Recall@{k}"] = recall_q.get(f"Recall@{k}", 0.0)
             
             per_query_eval[q_id] = query_scores
 

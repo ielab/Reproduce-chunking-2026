@@ -252,21 +252,39 @@ def cmd_evaluator(args: argparse.Namespace):
     write_trec_file(trec_file_path, ranking_results, args.chunk_embedding_run_id, top_k=args.top_k)
     print(f'[TREC file] wrote -> {trec_file_path}')
 
-    # Save per-query evaluation results in metric.eval format
-    eval_file_path = os.path.join(base_results_dir, "metric.eval")
+    # --- New Evaluation File Saving Logic ---
     per_query_eval = results.pop('per_query_eval')
-    
-    with open(eval_file_path, 'w') as f:
-        for query_id, query_scores in per_query_eval.items():
-            if query_scores is None:
-                print(f"Warning: No scores found for query_id '{query_id}'. Skipping.")
-                continue
-            for metric_name, value in query_scores.items():
-                # The metric names from beir can be complex, let's clean them up
-                cleaned_metric_name = metric_name.replace("NDCG@", "nDCG@")
-                f.write(f"{query_id} {cleaned_metric_name} {value}\n")
-    
-    print(f'[evaluation] wrote -> {eval_file_path}')
+
+    # Step 1: Collect all scores for each metric
+    from collections import defaultdict
+    metric_scores = defaultdict(list)
+    for query_id, query_scores in per_query_eval.items():
+        if query_scores is None:
+            print(f"Warning: No scores found for query_id '{query_id}'. Skipping.")
+            continue
+        for metric_name, value in query_scores.items():
+            cleaned_metric_name = metric_name.replace("NDCG@", "nDCG@")
+            metric_scores[cleaned_metric_name].append((query_id, value))
+
+    # Step 2: Write a separate file for each metric
+    for metric_name, scores_list in metric_scores.items():
+        # Create a valid filename
+        filename = f"{metric_name.replace('@', '_at_')}.eval"
+        eval_file_path = os.path.join(base_results_dir, filename)
+        
+        total_score = 0
+        with open(eval_file_path, 'w') as f:
+            for query_id, value in scores_list:
+                f.write(f"{query_id} {value}\n")
+                total_score += value
+        
+        # Calculate and append the average
+        if scores_list:
+            average_score = total_score / len(scores_list)
+            with open(eval_file_path, 'a') as f:
+                f.write(f"average {average_score}\n")
+        
+        print(f'[evaluation] wrote -> {eval_file_path}')
 
     print('Eval time:', time.perf_counter() - mid)
 

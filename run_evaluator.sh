@@ -80,15 +80,15 @@ for CHUNK_RUN_ID in "${CHUNK_RUN_IDS[@]}"; do
             # Query embeddings are based on the model only, not the encoder type
             QUERY_EMBEDDING_ID="${MODEL_SUFFIX}"
 
-            # Construct the expected output file path
-            METRIC_FILE="$OUTPUT_FOLDER/$DATASET/results/$CHUNK_RUN_ID/$CHUNK_EMBEDDING_ID/metric.eval"
+            # Construct the expected TREC file path as an indicator of completion
+            TREC_FILE="$OUTPUT_FOLDER/$DATASET/results/$CHUNK_RUN_ID/$CHUNK_EMB EDDING_ID/result.trec"
 
             echo "Pair: chunk=$CHUNK_EMBEDDING_ID | query=$QUERY_EMBEDDING_ID"
 
             for SCOPE in "${SCOPE_OPTIONS[@]}"; do
-                # Check if the metric file already exists
-                if [ -f "$METRIC_FILE" ]; then
-                    echo ">>> [$(timestamp)] Skipping: Metric file already exists at $METRIC_FILE"
+                # Check if the TREC file already exists
+                if [ -f "$TREC_FILE" ]; then
+                    echo ">>> [$(timestamp)] Skipping: TREC file already exists at $TREC_FILE"
                     continue
                 fi
 
