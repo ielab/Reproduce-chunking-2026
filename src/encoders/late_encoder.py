@@ -41,6 +41,8 @@ class LateEncoder(BaseEncoder):
         # in this case, the model_max_length is 2147483648, so set it up to 8192.
         if backbone_kwargs.get('model_name') == "jinaai/jina-embeddings-v2-small-en":
             self.tokenizer.model_max_length = 8192
+        elif backbone_kwargs.get('model_name') == "nomic-ai/nomic-embed-text-v1":
+            self.tokenizer.model_max_length = 8192
 
         self.model_max_length = self.tokenizer.model_max_length
         self.long_late_chunking_overlap_size = 256
@@ -332,14 +334,34 @@ class LateEncoder(BaseEncoder):
 
         output: List[ChunkEmbedding] = []
 
+        # Get the embedding dimension from the model config
+        embed_dim = self.model.get_embed_dim()
+
         for doc_chunks, doc_chunk_spans, V in zip(doc_chunks_list, doc_chunk_spans_list, vectors):
+
+            # Handle cases where a document produced no embeddings
+            if V.shape[0] == 0:
+                print(f"Warning: Document {doc_chunks[0].doc_id} produced an empty embedding vector. Assigning zero-vectors to its chunks.")
+                for chunk in doc_chunks:
+                    embedding = ChunkEmbedding(
+                        doc_id=chunk.doc_id,
+                        chunk_id=chunk.chunk_id,
+                        vector=[0.0] * embed_dim,
+                    )
+                    output.append(embedding)
+                continue
 
             assert (len(V) == doc_chunk_spans[-1][-1])
 
             for span, chunk in zip(doc_chunk_spans, doc_chunks):
                 start, end = span
 
-                chunk_vector = np.mean(V[start:end], axis=0)
+                # Handle cases where a chunk span is empty
+                if start >= end:
+                    print(f"Warning: Chunk {chunk.chunk_id} in doc {chunk.doc_id} has an empty span. Assigning a zero-vector.")
+                    chunk_vector = [0.0] * embed_dim
+                else:
+                    chunk_vector = np.mean(V[start:end], axis=0)
 
                 if isinstance(chunk_vector, np.ndarray):
                     chunk_vector = chunk_vector.tolist()

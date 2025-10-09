@@ -50,7 +50,7 @@ MODEL_NAME_CLEAN="${MODEL_NAME##*/}"
 if [[ "$MODEL_NAME" == "jinaai/jina-embeddings-v2-small-en" ]]; then
   BATCH_SIZE=12
 else
-  BATCH_SIZE=256
+  BATCH_SIZE=4
 fi
 
 # --- Handle Document Chunk Encoding ---

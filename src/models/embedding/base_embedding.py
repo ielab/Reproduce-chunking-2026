@@ -45,6 +45,10 @@ class BaseEmbeddingModel(ABC):
     def get_all_token_embeddings(self, texts: List[str], **kwargs):
         pass
 
+    def get_embed_dim(self) -> int:
+        """Returns the embedding dimension of the model."""
+        return self.model.config.hidden_size
+
     def get_embeddings_for_inputs(self, inputs: Dict, **kwargs):
 
         with torch.no_grad():
