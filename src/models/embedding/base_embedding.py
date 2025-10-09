@@ -13,6 +13,9 @@ class BaseEmbeddingModel(ABC):
         self.model_name = model_name
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
 
+        if self.model_name == "jinaai/jina-embeddings-v2-small-en":
+            self.tokenizer.model_max_length = 8192
+
         model_kwargs = {"trust_remote_code": True}
 
         if torch.cuda.is_available():
