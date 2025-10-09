@@ -89,47 +89,50 @@ def cmd_chunk(args: argparse.Namespace):
 
 
 def cmd_encoder(args: argparse.Namespace):
-
-    # e_kw = _loads_json(args.encoder_kwargs)
-
     args_dict = vars(args)
 
     # build embd_run_id run id
     encoder_keys = ['backbone', 'model_name', 'batch_size']
-    raw_e_kw = {k:args_dict[k] for k in encoder_keys}
+    raw_e_kw = {k: args_dict[k] for k in encoder_keys}
     e_all_params = {"encoder_name": args_dict['encoder_name'], **raw_e_kw}
 
     embd_run_id = build_emb_run_id(chunk_run_id=args.chunk_run_id, encoder=e_all_params)
 
     P = Paths(dataset_name=args_dict['dataset_name'], base_dir=args_dict['output_folder'])
-    embeddings_output_path = P.er_embeddings_pkl(args.chunk_run_id, embd_run_id)
-    #
-    init_kwargs = {
-        "backbone": raw_e_kw['backbone'],
-        "embed_sink_path": embeddings_output_path,
-        "backbone_kwargs": {
-            "model_name": raw_e_kw['model_name']
-        }
-    }
 
     call_kwargs = {
         "batch_size": raw_e_kw['batch_size'],
     }
 
-    if init_kwargs['backbone'] in ['openai']:
-        if API_KEY is None:
-            raise ValueError(f"Backbone {args_dict['backbone']} API key is required")
-        init_kwargs['backbone_kwargs']['api_key'] = API_KEY
-
-    encoder: BaseEncoder = ENCODER_REG.get(args_dict['encoder_name'])(**init_kwargs)
-
     # If --query is NOT specified, encode passages.
     if not args.query:
         embeddings_dir = P.er_dir(args.chunk_run_id, embd_run_id)
-        if not os.path.exists(embeddings_dir):
-            os.makedirs(embeddings_dir)
-        else:
+
+        # CHECK FIRST before creating anything
+        if os.path.exists(embeddings_dir):
             raise ValueError(f"{embeddings_dir} already exists! Please remove it and try again.")
+
+        # Now create the directory
+        os.makedirs(embeddings_dir)
+
+        # Get the output path (after directory is created)
+        embeddings_output_path = P.er_embeddings_pkl(args.chunk_run_id, embd_run_id)
+
+        # Initialize encoder
+        init_kwargs = {
+            "backbone": raw_e_kw['backbone'],
+            "embed_sink_path": embeddings_output_path,
+            "backbone_kwargs": {
+                "model_name": raw_e_kw['model_name']
+            }
+        }
+
+        if init_kwargs['backbone'] in ['openai']:
+            if API_KEY is None:
+                raise ValueError(f"Backbone {args_dict['backbone']} API key is required")
+            init_kwargs['backbone_kwargs']['api_key'] = API_KEY
+
+        encoder: BaseEncoder = ENCODER_REG.get(args_dict['encoder_name'])(**init_kwargs)
 
         chunk_path = P.cs_chunks_path(args.chunk_run_id)
         chunks = load_chunks(chunk_path)
@@ -143,10 +146,9 @@ def cmd_encoder(args: argparse.Namespace):
             paths=P,
             chunk_run_id=args.chunk_run_id,
             embed_run_id=embd_run_id,
-            encoder=init_kwargs|call_kwargs,
+            encoder=init_kwargs | call_kwargs,
         )
         print(f'[embeddings] wrote -> {embeddings_output_path}')
-
 
     # If --query is specified, encode queries.
     if args.query is True:
@@ -162,29 +164,39 @@ def cmd_encoder(args: argparse.Namespace):
 
             query_embeddings_output_path = P.q_embeddings_pkl(args.query_run_id, query_embed_run_id)
 
-            query_init_kwargs = {
+            init_kwargs = {
                 "backbone": raw_e_kw['backbone'],
-                "query_embeddings_output_path": query_embeddings_output_path,
+                "embed_sink_path": None,  # Not used for query encoding
                 "backbone_kwargs": {
-                "model_name": raw_e_kw['model_name']
+                    "model_name": raw_e_kw['model_name']
                 }
             }
+
+            if init_kwargs['backbone'] in ['openai']:
+                if API_KEY is None:
+                    raise ValueError(f"Backbone {args_dict['backbone']} API key is required")
+                init_kwargs['backbone_kwargs']['api_key'] = API_KEY
+
+            encoder: BaseEncoder = ENCODER_REG.get(args_dict['encoder_name'])(**init_kwargs)
 
             query_path = f"{args.output_folder}/{args.dataset_name}/queries/{args.query_run_id}/queries.jsonl"
             queries = load_queries(query_path)
             encoder.encode_queries(queries=queries,
                                    query_sink_path=query_embeddings_output_path,
-                                   batch_size=raw_e_kw['batch_size'],)
+                                   batch_size=raw_e_kw['batch_size'], )
+
+            # write manifest
+            if init_kwargs['backbone_kwargs'].get('api_key'):
+                init_kwargs['backbone_kwargs'].pop('api_key')
 
             write_query_embedding_manifest(
                 paths=P,
                 query_run_id=args.query_run_id,
                 q_embed_id=query_embed_run_id,
-                encoder=query_init_kwargs | call_kwargs,
+                encoder=init_kwargs | call_kwargs,
             )
 
             print(f'[query embeddings] wrote -> {query_embeddings_output_path}')
-
 
 def cmd_evaluator(args: argparse.Namespace):
 

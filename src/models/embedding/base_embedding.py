@@ -9,10 +9,6 @@ from transformers.tokenization_utils_base import BatchEncoding
 class BaseEmbeddingModel(ABC):
 
     def __init__(self, model_name: str):
-        import traceback
-        print(f"\n=== BaseEmbeddingModel.__init__ called for {model_name} ===")
-        traceback.print_stack()
-        print("=" * 60)
 
         self.model_name = model_name
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
