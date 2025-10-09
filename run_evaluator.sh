@@ -1,4 +1,21 @@
-#!/usr/bin/env bash
+#!/bin/bash
+#SBATCH --time=24:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=64g
+#SBATCH --gres=gpu:1
+#SBATCH --qos=express
+#SBATCH --account=OD-236007
+#SBATCH --job-name=grpo-bool
+#SBATCH --output=slurm_logs/print-chunk.txt
+#SBATCH --error=slurm_logs/error-chunk.txt
+
+# === Load Modules and Activate Environment ===
+module load miniconda3
+module load cuda
+source activate "/scratch3/wan458/chunking-reproduce/envs"
+
 
 # ===== User-tunable knobs =====
 OUTPUT_FOLDER="src/chunked_output"
@@ -37,12 +54,12 @@ BACKBONES_MODELS=(
 
 # Chunk run IDs to iterate
 CHUNK_RUN_IDS=(
-  #"ParagraphChunker"
+  "ParagraphChunker"
   "SentenceChunker"
-  #"FixedSizeChunker"
-  #"SemanticChunker"
-  #"LumberChunker"
-  #"Proposition"
+  "FixedSizeChunker"
+  "SemanticChunker"
+  "LumberChunker"
+  "Proposition"
 )
 
 # ==============================
