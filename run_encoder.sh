@@ -17,7 +17,7 @@ module load cuda
 source activate "/scratch3/wan458/chunking-reproduce/envs"
 
 
-PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+#PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 dataset_index=$1
 
@@ -99,18 +99,13 @@ done
 
 
 # Matrix sweep
-
-
-
-
-
-first_chunk=1
-
 for ENCODER in "${ENCODERS[@]}"; do
 
     for bm in "${BACKBONES_MODELS[@]}"; do
 
         IFS="|" read -r BACKBONE MODEL_NAME <<<"$bm"
+        MODEL_NAME_CLEAN="${MODEL_NAME##*/}"
+
         # if it's jina-embeddings-v2-small-en backbone, batch size use 12, otherwise 512
         if [[ "$MODEL_NAME" == "jinaai/jina-embeddings-v2-small-en" ]]; then
           BATCH_SIZE=12
@@ -118,14 +113,46 @@ for ENCODER in "${ENCODERS[@]}"; do
           BATCH_SIZE=256
         fi
 
+        # --- Handle Query Encoding ---
+        # As per build_query_embedding_run_id in run_ids.py, the ID is just the model name.
+        QUERY_EMBED_RUN_ID="${MODEL_NAME_CLEAN}"
+        QUERY_ENCODED_FOLDER="$OUTPUT_FOLDER/$DATASET/query_embeddings/${QUERY_RUN_ID}/${QUERY_EMBED_RUN_ID}"
+        echo "Checking for query embeddings: $QUERY_ENCODED_FOLDER"
 
+        if [[ ! -d "$QUERY_ENCODED_FOLDER" ]]; then
+          echo "Query embeddings not found for $MODEL_NAME. Encoding queries."
+          # The runner needs a chunk_run_id as a placeholder, but it will only encode queries
+          # because of the --query flag and the logic in runner.py.
+          FIRST_CHUNK_RUN_ID="${CHUNK_RUN_IDS[0]}"
+
+          CMD=(
+            python -m src.runner encoder
+            --dataset_name "$DATASET"
+            --chunk_run_id "$FIRST_CHUNK_RUN_ID"
+            --encoder_name "$ENCODER"
+            --backbone "$BACKBONE"
+            --model_name "$MODEL_NAME"
+            --batch_size "$BATCH_SIZE"
+            --output_folder "$OUTPUT_FOLDER"
+            --query --query_run_id "$QUERY_RUN_ID"
+          )
+          echo ">>> [$(timestamp)] ENCODING QUERIES | dataset=$DATASET | model=$MODEL_NAME"
+          echo "${CMD[@]}"
+          if [[ "$DRYRUN" -eq 0 ]]; then
+            "${CMD[@]}"
+          fi
+          echo
+        else
+          echo "Query embeddings already exist for $MODEL_NAME."
+        fi
+
+
+        # --- Handle Document Chunk Encoding ---
         for CHUNK_RUN_ID in "${CHUNK_RUN_IDS[@]}"; do
-            # actual output folder look like /scratch3/wan458/chunking-reproduce/src/chunked_output/arguana/embeddings/FixedSizeChunker/LateEncoder-jina-embeddings-v2-small-en, if it exists, skip
-            MODEL_NAME_CLEAN="${MODEL_NAME##*/}"
-            ACTUAL_OUTPUT_FOLDER="$OUTPUT_FOLDER/$DATASET/embeddings/${CHUNK_RUN_ID}/${ENCODER}-${MODEL_NAME_CLEAN}"
-            echo "Checking output folder: $ACTUAL_OUTPUT_FOLDER"
-            if [[ -d "$ACTUAL_OUTPUT_FOLDER" ]]; then
-              echo "Skipping existing output folder: $ACTUAL_OUTPUT_FOLDER"
+            DOC_EMBEDDINGS_FOLDER="$OUTPUT_FOLDER/$DATASET/embeddings/${CHUNK_RUN_ID}/${ENCODER}-${MODEL_NAME_CLEAN}"
+            echo "Checking for document embeddings: $DOC_EMBEDDINGS_FOLDER"
+            if [[ -d "$DOC_EMBEDDINGS_FOLDER" ]]; then
+              echo "Skipping existing document embeddings for chunk $CHUNK_RUN_ID."
               continue
             fi
 
@@ -133,19 +160,14 @@ for ENCODER in "${ENCODERS[@]}"; do
               python -m src.runner encoder
               --dataset_name "$DATASET"
               --chunk_run_id "$CHUNK_RUN_ID"
-              --encoder "$ENCODER"
+              --encoder_name "$ENCODER"
               --backbone "$BACKBONE"
               --model_name "$MODEL_NAME"
               --batch_size "$BATCH_SIZE"
               --output_folder "$OUTPUT_FOLDER"
             )
 
-            if [[ $first_chunk -eq 1 ]]; then
-                CMD+=( --query --query_run_id "$QUERY_RUN_ID" )
-                first_chunk=0
-            fi
-
-            echo ">>> [$(timestamp)] dataset=$DATASET | encoder=$ENCODER | backbone=$BACKBONE | model=$MODEL_NAME | chunk=$CHUNK_RUN_ID | query=$QUERY_RUN_ID"
+            echo ">>> [$(timestamp)] ENCODING DOCS | dataset=$DATASET | model=$MODEL_NAME | chunk=$CHUNK_RUN_ID"
             echo "${CMD[@]}"
             if [[ "$DRYRUN" -eq 0 ]]; then
               "${CMD[@]}"

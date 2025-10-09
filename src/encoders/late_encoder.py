@@ -26,11 +26,11 @@ class LateEncoder(BaseEncoder):
 
         super().__init__(backbone, embed_sink_path, backbone_kwargs)
 
-        backbone_cls = EMD_BACKBONE_REG.get(backbone)
+        #backbone_cls = EMD_BACKBONE_REG.get(backbone)
         self.backbone = backbone
 
-        self.model: BaseEmbeddingModel = backbone_cls(**(backbone_kwargs or {}))
-        self._sink = PickleSink(embed_sink_path) if embed_sink_path else None
+        #self.model: BaseEmbeddingModel = backbone_cls(**(backbone_kwargs or {}))
+        #self._sink = PickleSink(embed_sink_path) if embed_sink_path else None
 
         self.tokenizer = AutoTokenizer.from_pretrained(backbone_kwargs.get('model_name'),
                                                        trust_remote_code=True)

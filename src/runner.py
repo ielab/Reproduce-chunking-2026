@@ -102,17 +102,6 @@ def cmd_encoder(args: argparse.Namespace):
     embd_run_id = build_emb_run_id(chunk_run_id=args.chunk_run_id, encoder=e_all_params)
 
     P = Paths(dataset_name=args_dict['dataset_name'], base_dir=args_dict['output_folder'])
-    embeddings_dir = P.er_dir(args.chunk_run_id, embd_run_id)
-
-
-    if not os.path.exists(embeddings_dir):
-        os.makedirs(embeddings_dir)
-    else:
-        raise ValueError(f"{embeddings_dir} already exists! Please remove it and try again."
-                         f"If you don't want to create query embedding files, please delete '--query' in the command line.")
-
-    # embeddings_output_path = P.er_embeddings_jsonl(args.chunk_run_id, embd_run_id)
-    # embeddings_output_path = P.er_embeddings_gzip(args.chunk_run_id, embd_run_id)
     embeddings_output_path = P.er_embeddings_pkl(args.chunk_run_id, embd_run_id)
     #
     init_kwargs = {
@@ -132,26 +121,34 @@ def cmd_encoder(args: argparse.Namespace):
             raise ValueError(f"Backbone {args_dict['backbone']} API key is required")
         init_kwargs['backbone_kwargs']['api_key'] = API_KEY
 
-    chunk_path = P.cs_chunks_path(args.chunk_run_id)
-    chunks = load_chunks(chunk_path)
-
     encoder: BaseEncoder = ENCODER_REG.get(args_dict['encoder_name'])(**init_kwargs)
-    encoder.encode_passages(chunks=chunks, **call_kwargs)
 
-    # write manifest
-    if init_kwargs['backbone_kwargs'].get('api_key'):
-        init_kwargs['backbone_kwargs'].pop('api_key')
+    # If --query is NOT specified, encode passages.
+    if not args.query:
+        embeddings_dir = P.er_dir(args.chunk_run_id, embd_run_id)
+        if not os.path.exists(embeddings_dir):
+            os.makedirs(embeddings_dir)
+        else:
+            raise ValueError(f"{embeddings_dir} already exists! Please remove it and try again.")
 
-    write_embedding_manifest(
-        paths=P,
-        chunk_run_id=args.chunk_run_id,
-        embed_run_id=embd_run_id,
-        encoder=init_kwargs|call_kwargs,
-    )
+        chunk_path = P.cs_chunks_path(args.chunk_run_id)
+        chunks = load_chunks(chunk_path)
+        encoder.encode_passages(chunks=chunks, **call_kwargs)
 
-    print(f'[embeddings] wrote -> {embeddings_output_path}')
+        # write manifest
+        if init_kwargs['backbone_kwargs'].get('api_key'):
+            init_kwargs['backbone_kwargs'].pop('api_key')
+
+        write_embedding_manifest(
+            paths=P,
+            chunk_run_id=args.chunk_run_id,
+            embed_run_id=embd_run_id,
+            encoder=init_kwargs|call_kwargs,
+        )
+        print(f'[embeddings] wrote -> {embeddings_output_path}')
 
 
+    # If --query is specified, encode queries.
     if args.query is True:
 
         query_embed_run_id = build_query_embedding_run_id(qs_id=args.query_run_id, encoder=e_all_params)

@@ -23,8 +23,8 @@ class RegularEncoder(BaseEncoder):
 
         backbone_cls = EMD_BACKBONE_REG.get(backbone)
 
-        self.model: BaseEmbeddingModel = backbone_cls(**(backbone_kwargs or {}))
-        self._sink = PickleSink(embed_sink_path) if embed_sink_path else None
+        # self.model: BaseEmbeddingModel = backbone_cls(**(backbone_kwargs or {}))
+        # self._sink = PickleSink(embed_sink_path) if embed_sink_path else None
 
 
     def encode_passages(self,
