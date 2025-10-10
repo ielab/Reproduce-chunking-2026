@@ -191,100 +191,88 @@ class LateEncoder(BaseEncoder):
 
         return new_sliced_list
 
-    def long_late_encode_with_prefix(self, texts: List[str], prefix: str, batch_size: int):
+    def long_late_encode_with_prefix(self, doc_texts: List[List[str]], prefix: str, batch_size: int):
         """
-        the logic:
-        1. tokenize the texts
-        2. record cls, sep, prefix
-        3. cut the text into sub_texts with max_model_length - overlap_size - prefix_length - cls - sep
-        4. combine each text into new sub_text, new_sub_text = cls + prefix + overlap_text + sub_text + sep
-        5. add padding, generate the input of the model
-        6. feed the input to the model, get embeddings
-        7. get the original text embedding,
-            - if start = 0 and end = last -> text_embedding = embedding
-            - if start = 0 and end != last -> text_embedding[:-1,:]
-            - if start != 0 and end = last -> text_embedding[cls+prefix_length + overlap_size:,:]
-            if start != 0 and end != last -> text_embedding[cls+prefix_length + overlap_size:-1,:]
+        A streaming implementation to handle extremely long documents without loading the
+        entire tokenized document into memory. It processes chunks sequentially.
         """
-
-        model_inputs_no_padding = self.tokenizer(
-            texts,
-            padding=False,
-            truncation=False,
-            add_special_tokens=False,
-        )
-
-        model_inputs_no_padding = {k: [torch.tensor(x) for x in v] for k,v in model_inputs_no_padding.items()}
-
-        len_tokens = [len(input_id) for input_id in model_inputs_no_padding['input_ids']]
-
-        prefix_token_ids = self.tokenizer(prefix, add_special_tokens=False, return_tensors='pt')['input_ids'][0]
-        prefix_token_len = len(prefix_token_ids)
-
-        special_tokens_len = prefix_token_len + 2
-
-        indices = []
-
-        for text_id, length in enumerate(len_tokens):
-
-            for i in range(0, length, self.model_max_length - self.long_late_chunking_overlap_size - special_tokens_len):
-                start = i
-                end = min(i + self.model_max_length - special_tokens_len, length)
-                indices.append((text_id, start, end, length))
-                if end == length:
-                    break
-
-        text_id2embedding = {}
+        all_doc_vectors = []
+        embed_dim = self.model.get_embed_dim()
 
         cls_token_tensor = torch.tensor([self.tokenizer.cls_token_id])
         sep_token_tensor = torch.tensor([self.tokenizer.sep_token_id])
+        prefix_token_ids = self.tokenizer(prefix, add_special_tokens=False, return_tensors='pt')['input_ids'][0]
 
-        for i in tqdm(range(0, len(indices), batch_size)):
+        if prefix_token_ids.numel() > 0:
+            prefix_special_token_ids = torch.cat([cls_token_tensor, prefix_token_ids])
+        else:
+            prefix_special_token_ids = cls_token_tensor
+        
+        special_tokens_len = len(prefix_special_token_ids) + 1 # CLS + prefix + SEP
 
-            sub_indices = indices[i:i+batch_size]
+        # Max tokens for the actual content in each window
+        max_content_len = self.model_max_length - special_tokens_len
 
-            sliced_list = [self._slice_one(model_inputs_no_padding, index_tuple) for index_tuple in sub_indices]
+        for texts in tqdm(doc_texts, desc="Encoding documents"):
+            if not texts:
+                all_doc_vectors.append(np.array([]).reshape(0, embed_dim))
+                continue
 
-            add_special_tokens_sliced_list = self.add_special_tokens(sliced_list,
-                                                                prefix_token_ids=prefix_token_ids,
-                                                                cls_token_id=cls_token_tensor,
-                                                                sep_token_id=sep_token_tensor)
+            # Tokenize all chunks of the current document individually
+            chunk_input_ids = self.tokenizer(texts, padding=False, truncation=False, add_special_tokens=False)['input_ids']
+            
+            window_batch = [] # Batch of windows to send to the model
+            current_window_ids = []
 
+            for chunk_ids in chunk_input_ids:
+                # If a single chunk is too long, truncate it.
+                if len(chunk_ids) > max_content_len:
+                    print(f"Warning: A single chunk is longer than the model's max window size ({max_content_len}). Truncating it.")
+                    chunk_ids = chunk_ids[:max_content_len]
 
-            batch_inputs, lengths = self._pad_batch(add_special_tokens_sliced_list, pad_token_id=self.tokenizer.pad_token_id)
-
-            last_hidden_state = self.model.get_embeddings_for_inputs(inputs=batch_inputs).last_hidden_state
-
-            assert len(last_hidden_state) == len(sub_indices)
-
-            for b_idx, L in enumerate(lengths):
-
-                text_id, start, end, text_L = sub_indices[b_idx]
-
-                embedding = last_hidden_state[b_idx, :L]
-
-                if start == 0 and end == text_L:
-                    pass
-                elif start == 0 and end != text_L:
-                    embedding = embedding[:-1, ]
-                elif start != 0 and end == text_L:
-                    embedding = embedding[self.long_late_chunking_overlap_size + prefix_token_len + 1:, ]
+                # If the current window is empty or the new chunk fits, add it
+                if not current_window_ids or (len(current_window_ids) + len(chunk_ids)) <= max_content_len:
+                    current_window_ids.extend(chunk_ids)
+                # If the chunk doesn't fit, finalize the current window and start a new one
                 else:
-                    embedding = embedding[self.long_late_chunking_overlap_size + prefix_token_len + 1:-1, ]
+                    window_batch.append(torch.tensor(current_window_ids))
+                    current_window_ids = chunk_ids # Start new window with the current chunk
 
-                if embedding.numel() != 0:
-                    text_id2embedding.setdefault(text_id, []).append(embedding)
+            # Add the last remaining window if it's not empty
+            if current_window_ids:
+                window_batch.append(torch.tensor(current_window_ids))
 
-        vectors = []
+            # Now, encode all the prepared windows for the document
+            doc_vectors = []
+            for i in range(0, len(window_batch), batch_size):
+                sub_batch_windows = window_batch[i:i+batch_size]
+                
+                # Add special tokens and pad
+                padded_inputs = []
+                for window_ids in sub_batch_windows:
+                    input_ids = torch.cat([prefix_special_token_ids, window_ids, sep_token_tensor])
+                    padded_inputs.append({'input_ids': input_ids})
 
-        for text_id, embeddings in text_id2embedding.items():
+                batch_inputs, lengths = self._pad_batch(padded_inputs, pad_token_id=self.tokenizer.pad_token_id)
+                
+                # Get embeddings
+                last_hidden_state = self.model.get_embeddings_for_inputs(inputs=batch_inputs).last_hidden_state
 
-            V = torch.cat(embeddings, dim=0)
-            V = V.detach().cpu().numpy()
+                # Unpad and store
+                for b_idx, L in enumerate(lengths):
+                    # Exclude CLS/prefix and SEP tokens from the final vector
+                    vector = last_hidden_state[b_idx, len(prefix_special_token_ids):L-1].detach().cpu()
+                    if vector.numel() > 0:
+                        doc_vectors.append(vector)
 
-            vectors.append(V)
+            if not doc_vectors:
+                 all_doc_vectors.append(np.array([]).reshape(0, embed_dim))
+                 continue
 
-        return vectors
+            V = torch.cat(doc_vectors, dim=0).numpy()
+            all_doc_vectors.append(V)
+
+        return all_doc_vectors
 
 
     def encode_passages(self,
@@ -309,8 +297,9 @@ class LateEncoder(BaseEncoder):
 
         doc_chunks_list: List[List[Chunk]] = []
         doc_chunk_spans_list: List[List[Tuple]] = []
-
-        text_list: List[str] = []
+        
+        # Collect lists of chunk texts for each document
+        doc_texts_list: List[List[str]] = []
 
         for doc_id, position_idx in doc_range.items():
 
@@ -318,19 +307,17 @@ class LateEncoder(BaseEncoder):
 
             doc_chunks = chunks[doc_start_idx:doc_end_idx]
             doc_text = [c.text for c in doc_chunks]
+            
+            # We still need the spans to map results back to chunks
             doc_chunk_spans = self._get_chunk_span(doc_text, prefix=prefix)
-            text = self.merge_text(doc_text)   # merge doc text
-
-            # here we need the pair (doc_chunks, doc_chunk_spans, texts)
-            # text is used for generating vector
-            # doc_chunks and doc_chunk_spans are used for create ChunkEmbedding
+            
             assert len(doc_chunks) == len(doc_chunk_spans)
 
             doc_chunks_list.append(doc_chunks)
             doc_chunk_spans_list.append(doc_chunk_spans)
-            text_list.append(text)
+            doc_texts_list.append(doc_text)
 
-        vectors: List[np.ndarray] = self.long_late_encode_with_prefix(texts=text_list, prefix=prefix, batch_size=batch_size)
+        vectors: List[np.ndarray] = self.long_late_encode_with_prefix(doc_texts=doc_texts_list, prefix=prefix, batch_size=batch_size)
 
         output: List[ChunkEmbedding] = []
 

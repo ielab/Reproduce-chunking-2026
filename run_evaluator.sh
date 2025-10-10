@@ -7,8 +7,8 @@
 #SBATCH --qos=express
 #SBATCH --account=OD-236007
 #SBATCH --job-name=evaluate
-#SBATCH --output=slurm_logs/evaluate-%A_%a.txt
-#SBATCH --error=slurm_logs/evaluate-error-%A_%a.txt
+#SBATCH --output=slurm_logs_evaluate/evaluate-%A_%a.txt
+#SBATCH --error=slurm_logs_evaluate/evaluate-error-%A_%a.txt
 
 # === Load Modules and Activate Environment ===
 module load miniconda3

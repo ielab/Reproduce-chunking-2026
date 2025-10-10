@@ -347,7 +347,7 @@ def build_parser() -> argparse.ArgumentParser:
     peval.add_argument("--dataset_name", required=True)
     peval.add_argument("--scope", choices=['document', 'corpus'], required=True,
                        help="Retrieve in a document or in all corpus")
-    peval.add_argument("--similarity", choices=['cosine', 'dot'])
+    peval.add_argument("--similarity", choices=['cosine', 'dot'], default='cosine')
     peval.add_argument("--source_path", required=True)
     peval.add_argument("--top_k", type=int, default=100, help="Number of top documents to save in TREC file.")
     peval.set_defaults(func=cmd_evaluator)

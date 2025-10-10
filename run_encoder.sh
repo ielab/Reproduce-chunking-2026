@@ -3,7 +3,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=64g
+#SBATCH --mem=256g
 #SBATCH --gres=gpu:1
 #SBATCH --qos=express
 #SBATCH --account=OD-236007
@@ -48,9 +48,9 @@ MODEL_NAME_CLEAN="${MODEL_NAME##*/}"
 
 # Set batch size based on model
 if [[ "$MODEL_NAME" == "jinaai/jina-embeddings-v2-small-en" ]]; then
-  BATCH_SIZE=1
+  BATCH_SIZE=4
 else
-  BATCH_SIZE=1
+  BATCH_SIZE=4
 fi
 
 # --- Handle Document Chunk Encoding ---
