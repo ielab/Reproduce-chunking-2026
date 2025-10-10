@@ -21,9 +21,10 @@ CHUNK_RUN_ID=$2
 ENCODER=$3
 MODEL_NAME=$4
 SCOPE=$5
+SIMILARITY=$6
 
-if [ -z "$DATASET" ] || [ -z "$CHUNK_RUN_ID" ] || [ -z "$ENCODER" ] || [ -z "$MODEL_NAME" ] || [ -z "$SCOPE" ]; then
-  echo "Usage: $0 <DATASET> <CHUNK_RUN_ID> <ENCODER> <MODEL_NAME> <SCOPE>"
+if [ -z "$DATASET" ] || [ -z "$CHUNK_RUN_ID" ] || [ -z "$ENCODER" ] || [ -z "$MODEL_NAME" ] || [ -z "$SCOPE" ] || [ -z "$SIMILARITY" ]; then
+  echo "Usage: $0 <DATASET> <CHUNK_RUN_ID> <ENCODER> <MODEL_NAME> <SCOPE> <SIMILARITY>"
   exit 1
 fi
 
@@ -39,6 +40,7 @@ echo "Chunk Run ID: $CHUNK_RUN_ID"
 echo "Encoder: $ENCODER"
 echo "Model Name: $MODEL_NAME"
 echo "Scope: $SCOPE"
+echo "Similarity: $SIMILARITY"
 
 # --- Path and ID Construction ---
 MODEL_NAME_CLEAN="${MODEL_NAME##*/}"
@@ -81,6 +83,7 @@ CMD=(
   --query_embedding_run_id "$QUERY_EMBEDDING_RUN_ID"
   --scope "$SCOPE"
   --source_path "$SOURCE_PATH"
+  --similarity "$SIMILARITY"
 )
 
 echo ">>> [$(timestamp)] RUNNING EVALUATION"

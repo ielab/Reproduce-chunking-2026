@@ -1,5 +1,6 @@
 from typing import List, Dict, Tuple
 import numpy as np
+from tqdm import tqdm
 
 from src.types import Query, Chunk, ChunkEmbedding, QueryEmbedding
 

@@ -277,7 +277,7 @@ def cmd_evaluator(args: argparse.Namespace):
     # Step 2: Write a separate file for each metric
     for metric_name, scores_list in metric_scores.items():
         # Create a valid filename
-        filename = f"{metric_name.replace('@', '_at_')}.eval"
+        filename = f"{metric_name}.eval"
         eval_file_path = os.path.join(base_results_dir, filename)
         
         total_score = 0
@@ -347,7 +347,7 @@ def build_parser() -> argparse.ArgumentParser:
     peval.add_argument("--dataset_name", required=True)
     peval.add_argument("--scope", choices=['document', 'corpus'], required=True,
                        help="Retrieve in a document or in all corpus")
-    peval.add_argument("--similarity", choices=['cosine', 'dot'], default='cosine')
+    peval.add_argument("--similarity", choices=['cosine', 'dot'])
     peval.add_argument("--source_path", required=True)
     peval.add_argument("--top_k", type=int, default=100, help="Number of top documents to save in TREC file.")
     peval.set_defaults(func=cmd_evaluator)
