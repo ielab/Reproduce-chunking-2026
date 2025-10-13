@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH --time=01:00:00
+#SBATCH --time=05:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=32g
+#SBATCH --mem=128g
 #SBATCH --qos=express
 #SBATCH --account=OD-236007
 #SBATCH --job-name=evaluate

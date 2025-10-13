@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Generate LaTeX table comparing chunking strategies across different models and datasets.
-Focuses on RegularEncoder with nDCG@10 metric.
+Generate LaTeX table comparing RegularEncoder vs LateEncoder performance.
+Shows the difference (LateEncoder - RegularEncoder) for each combination.
 """
 
 import os
@@ -67,7 +67,7 @@ def collect_results(
     datasets: List[str],
     models: List[str],
     chunkers: List[str],
-    encoder: str = "RegularEncoder"
+    encoder: str
 ) -> Dict[Tuple[str, str, str], float]:
     """
     Collect all nDCG@10 or DCG@10 results from the output directory.
@@ -77,7 +77,7 @@ def collect_results(
         datasets: List of dataset names
         models: List of model names (cleaned, e.g., 'jina-embeddings-v3')
         chunkers: List of chunker names
-        encoder: Encoder name (default: RegularEncoder)
+        encoder: Encoder name (RegularEncoder or LateEncoder)
 
     Returns:
         Dictionary mapping (model, chunker, dataset) -> nDCG@10 or DCG@10 score
@@ -103,66 +103,52 @@ def collect_results(
                 score = parse_eval_file(eval_path)
                 if score is not None:
                     results[(model, chunker, dataset)] = score
-                else:
-                    print(f"Warning: Could not read {eval_path}")
 
     return results
 
 
-def generate_latex_table(
-    results: Dict[Tuple[str, str, str], float],
+def generate_comparison_table(
+    regular_results: Dict[Tuple[str, str, str], float],
+    late_results: Dict[Tuple[str, str, str], float],
     datasets: List[str],
     models: List[str],
     chunkers: List[str],
     output_path: Optional[str] = None
 ) -> str:
     """
-    Generate LaTeX table with models as multirow, chunkers as rows, datasets as columns.
+    Generate LaTeX table comparing LateEncoder vs RegularEncoder (baseline).
 
-    Table structure:
-    - First row: Task (GutenQA=document, others=corpus)
-    - Second row: Dataset names
-    - First column: Model names (multirow spanning all chunkers)
-    - Remaining columns: nDCG@10 scores for each dataset
+    Table shows percentage change relative to RegularEncoder.
+    Negative changes are shown as '---' (null).
     """
 
-    # Find maximum score for each dataset PER MODEL (to bold them)
-    max_scores = {}  # key: (model, dataset), value: max_score
+    # Find maximum percentage change for each dataset PER MODEL (to bold them)
+    max_pct_changes = {}  # key: (model, dataset), value: max_pct_change
     for model in models:
         for dataset in datasets:
-            dataset_scores = []
+            pct_changes = []
             for chunker in chunkers:
                 key = (model, chunker, dataset)
-                if key in results:
-                    dataset_scores.append(results[key])
-            if dataset_scores:
-                max_scores[(model, dataset)] = max(dataset_scores)
-
-    # Find maximum average score PER MODEL
-    max_avg_per_model = {}  # key: model, value: max_avg
-    for model in models:
-        model_averages = []
-        for chunker in chunkers:
-            corpus_scores = []
-            for dataset in datasets:
-                if dataset != 'GutenQA':
-                    key = (model, chunker, dataset)
-                    if key in results:
-                        corpus_scores.append(results[key])
-            if corpus_scores:
-                model_averages.append(sum(corpus_scores) / len(corpus_scores))
-        if model_averages:
-            max_avg_per_model[model] = max(model_averages)
+                regular_score = regular_results.get(key)
+                late_score = late_results.get(key)
+                if regular_score is not None and late_score is not None and regular_score != 0:
+                    pct_change = ((late_score - regular_score) / regular_score) * 100
+                    pct_changes.append(pct_change)
+            if pct_changes:
+                max_pct_changes[(model, dataset)] = max(pct_changes)
 
     # Start building the LaTeX table
-    num_cols = len(datasets) + 2  # +1 for model/chunker column, +1 for average
-    col_spec = 'll' + 'c' * (len(datasets) + 1)  # +1 for average column
+    num_cols = len(datasets) + 1  # +1 for model/chunker column
+    col_spec = 'll' + 'c' * len(datasets)
 
     latex_lines = []
     latex_lines.append(r'\begin{table}[htbp]')
     latex_lines.append(r'\centering')
-    latex_lines.append(r'\caption{Performance comparison across different models, chunking strategies, and datasets using DCG@10 for GutenQA and nDCG@10 for other datasets (RegularEncoder)}')
-    latex_lines.append(r'\label{tab:results_regular_encoder}')
+    # Define custom light green and light red colors for cell backgrounds
+    latex_lines.append(r'\definecolor{lightgreen}{RGB}{220,255,220}')
+    latex_lines.append(r'\definecolor{lightred}{RGB}{255,220,220}')
+    latex_lines.append(r'\caption{LateEncoder performance relative to RegularEncoder (baseline). Values show percentage change (light green=improvement, light red=degradation)}')
+    latex_lines.append(r'\label{tab:encoder_comparison}')
     latex_lines.append(r'\begin{tabular}{' + col_spec + r'}')
     latex_lines.append(r'\toprule')
 
@@ -175,27 +161,24 @@ def generate_latex_table(
     if doc_datasets:
         task_row.append(r'\multicolumn{1}{c}{\textbf{\textit{document}}}')
     if corpus_datasets:
-        # +1 for the average column
-        task_row.append(r'\multicolumn{' + str(len(corpus_datasets) + 1) + r'}{c}{\textbf{\textit{corpus}}}')
+        task_row.append(r'\multicolumn{' + str(len(corpus_datasets)) + r'}{c}{\textbf{\textit{corpus}}}')
     latex_lines.append(' & '.join(task_row) + r' \\')
 
     # Add cmidrules under task row
     # Calculate column positions (0-indexed, but cmidrule uses 1-indexed)
-    # Columns: [empty, empty, GutenQA, corpus datasets..., Avg]
+    # Columns: [empty, empty, GutenQA, corpus datasets...]
     if doc_datasets and corpus_datasets:
-        # Document: column 3, Corpus: columns 4 to (4 + len(corpus_datasets))
-        latex_lines.append(r'\cmidrule(lr){3-3} \cmidrule(lr){4-' + str(3 + len(corpus_datasets) + 1) + r'}')
+        # Document: column 3, Corpus: columns 4 to (3 + len(corpus_datasets))
+        latex_lines.append(r'\cmidrule(lr){3-3} \cmidrule(lr){4-' + str(3 + len(corpus_datasets)) + r'}')
     elif doc_datasets:
         latex_lines.append(r'\cmidrule(lr){3-3}')
     elif corpus_datasets:
-        latex_lines.append(r'\cmidrule(lr){3-' + str(2 + len(corpus_datasets) + 1) + r'}')
+        latex_lines.append(r'\cmidrule(lr){3-' + str(2 + len(corpus_datasets)) + r'}')
 
-    # Second row: Dataset names + Average for corpus
+    # Second row: Dataset names
     dataset_row = [' & ']
     for dataset in datasets:
         dataset_row.append(dataset)
-    # Add Average column for corpus
-    dataset_row.append('Avg')
     latex_lines.append(' & '.join(dataset_row) + r' \\')
     latex_lines.append(r'\midrule')
 
@@ -206,42 +189,48 @@ def generate_latex_table(
         for chunker_idx, chunker in enumerate(chunkers):
             chunker_display = get_chunker_display_name(chunker)
 
-            # For the first chunker of each model, add multirow for model name (rotated)
+            # For the first chunker of each model, add multirow for model name
             if chunker_idx == 0:
-                row = [rf'\multirow{{{len(chunkers)}}}{{*}}{{\rotatebox{{90}}{{\textbf{{{model_display}}}}}}} & {chunker_display}']
+                row = [rf'\multirow{{{len(chunkers)}}}{{*}}{{\textbf{{{model_display}}}}} & {chunker_display}']
             else:
                 row = [f'& {chunker_display}']
 
-            # Add scores for each dataset and calculate corpus average
-            corpus_scores = []
+            # Add scores for each dataset
             for dataset in datasets:
                 key = (model, chunker, dataset)
-                if key in results:
-                    score = results[key]
-                    # Bold if this is the maximum score for this dataset WITHIN THIS MODEL
-                    max_key = (model, dataset)
-                    is_max = (max_key in max_scores and abs(score - max_scores[max_key]) < 1e-6)
-                    if is_max:
-                        row.append(f'\\textbf{{{score:.4f}}}')
-                    else:
-                        row.append(f'{score:.4f}')
-                    # Collect corpus scores for average (exclude GutenQA)
-                    if dataset != 'GutenQA':
-                        corpus_scores.append(score)
-                else:
-                    row.append('---')
+                regular_score = regular_results.get(key)
+                late_score = late_results.get(key)
 
-            # Add average column (only for corpus datasets)
-            if corpus_scores:
-                avg_score = sum(corpus_scores) / len(corpus_scores)
-                # Bold if this is the maximum average WITHIN THIS MODEL
-                is_max_avg = (model in max_avg_per_model and abs(avg_score - max_avg_per_model[model]) < 1e-6)
-                if is_max_avg:
-                    row.append(f'\\textbf{{{avg_score:.4f}}}')
+                if regular_score is not None and late_score is not None:
+                    if regular_score == 0:
+                        # Avoid division by zero
+                        cell_content = '---'
+                    else:
+                        # Calculate percentage change: ((late - regular) / regular) * 100
+                        pct_change = ((late_score - regular_score) / regular_score) * 100
+
+                        # Check if this is the maximum percentage change for this dataset WITHIN THIS MODEL
+                        max_key = (model, dataset)
+                        is_max = (max_key in max_pct_changes and
+                                 abs(pct_change - max_pct_changes[max_key]) < 1e-6)
+
+                        if pct_change > 0:
+                            # Positive change - light green background
+                            if is_max:
+                                cell_content = f'\\cellcolor{{lightgreen}}\\textbf{{{pct_change:+.2f}}}'
+                            else:
+                                cell_content = f'\\cellcolor{{lightgreen}}{pct_change:+.2f}'
+                        elif pct_change < 0:
+                            # Negative change - light red background
+                            cell_content = f'\\cellcolor{{lightred}}{pct_change:.2f}'
+                        else:
+                            # Zero change - no color
+                            cell_content = f'{pct_change:.2f}'
                 else:
-                    row.append(f'{avg_score:.4f}')
-            else:
-                row.append('---')
+                    # Missing data
+                    cell_content = '---'
+
+                row.append(cell_content)
 
             latex_lines.append(' & '.join(row) + r' \\')
 
@@ -265,7 +254,7 @@ def generate_latex_table(
 
 
 def main():
-    """Main function to generate the results table."""
+    """Main function to generate the comparison table."""
 
     # Configuration
     BASE_PATH = "/scratch3/wan458/chunking-reproduce/src/chunked_output"
@@ -299,18 +288,32 @@ def main():
         'Proposition',
     ]
 
-    ENCODER = 'RegularEncoder'
-
     # Output path (relative to current working directory)
-    OUTPUT_PATH = 'results_table_regular_encoder.tex'
+    OUTPUT_PATH = 'results_table_encoder_comparison.tex'
 
-    print("Collecting results...")
-    results = collect_results(BASE_PATH, DATASETS, MODELS, CHUNKERS, ENCODER)
+    print("Collecting RegularEncoder results...")
+    regular_results = collect_results(BASE_PATH, DATASETS, MODELS, CHUNKERS, 'RegularEncoder')
+    print(f"Found {len(regular_results)} RegularEncoder result entries")
 
-    print(f"Found {len(results)} result entries")
+    print("Collecting LateEncoder results...")
+    late_results = collect_results(BASE_PATH, DATASETS, MODELS, CHUNKERS, 'LateEncoder')
+    print(f"Found {len(late_results)} LateEncoder result entries")
 
-    print("Generating LaTeX table...")
-    latex_table = generate_latex_table(results, DATASETS, MODELS, CHUNKERS, OUTPUT_PATH)
+    print("Generating comparison table...")
+
+    # Debug: Show some sample comparisons
+    print("\nSample comparisons:")
+    for i, (model, chunker, dataset) in enumerate(list(regular_results.keys())[:5]):
+        reg_score = regular_results.get((model, chunker, dataset))
+        late_score = late_results.get((model, chunker, dataset))
+        if reg_score and late_score:
+            pct = ((late_score - reg_score) / reg_score) * 100
+            print(f"  {model} / {chunker} / {dataset}:")
+            print(f"    Regular: {reg_score:.4f}, Late: {late_score:.4f}, Change: {pct:+.2f}%")
+
+    latex_table = generate_comparison_table(
+        regular_results, late_results, DATASETS, MODELS, CHUNKERS, OUTPUT_PATH
+    )
 
     print("\nGenerated LaTeX table:")
     print("=" * 80)
@@ -321,7 +324,7 @@ def main():
     print("\nNote: Make sure to include the following packages in your LaTeX preamble:")
     print("  \\usepackage{booktabs}")
     print("  \\usepackage{multirow}")
-    print("  \\usepackage{graphicx}  % for \\rotatebox")
+    print("  \\usepackage[table]{xcolor}  % [table] option required for \\cellcolor")
 
 
 if __name__ == '__main__':

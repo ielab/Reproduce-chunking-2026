@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Generate LaTeX table comparing chunking strategies across different models and datasets.
-Focuses on RegularEncoder with nDCG@10 metric.
+Focuses on LateEncoder with nDCG@10 metric.
 """
 
 import os
@@ -67,7 +67,7 @@ def collect_results(
     datasets: List[str],
     models: List[str],
     chunkers: List[str],
-    encoder: str = "RegularEncoder"
+    encoder: str = "LateEncoder"
 ) -> Dict[Tuple[str, str, str], float]:
     """
     Collect all nDCG@10 or DCG@10 results from the output directory.
@@ -77,7 +77,7 @@ def collect_results(
         datasets: List of dataset names
         models: List of model names (cleaned, e.g., 'jina-embeddings-v3')
         chunkers: List of chunker names
-        encoder: Encoder name (default: RegularEncoder)
+        encoder: Encoder name (default: LateEncoder)
 
     Returns:
         Dictionary mapping (model, chunker, dataset) -> nDCG@10 or DCG@10 score
@@ -161,8 +161,8 @@ def generate_latex_table(
     latex_lines = []
     latex_lines.append(r'\begin{table}[htbp]')
     latex_lines.append(r'\centering')
-    latex_lines.append(r'\caption{Performance comparison across different models, chunking strategies, and datasets using DCG@10 for GutenQA and nDCG@10 for other datasets (RegularEncoder)}')
-    latex_lines.append(r'\label{tab:results_regular_encoder}')
+    latex_lines.append(r'\caption{Performance comparison across different models, chunking strategies, and datasets using DCG@10 for GutenQA and nDCG@10 for other datasets (LateEncoder)}')
+    latex_lines.append(r'\label{tab:results_late_encoder}')
     latex_lines.append(r'\begin{tabular}{' + col_spec + r'}')
     latex_lines.append(r'\toprule')
 
@@ -299,10 +299,10 @@ def main():
         'Proposition',
     ]
 
-    ENCODER = 'RegularEncoder'
+    ENCODER = 'LateEncoder'
 
     # Output path (relative to current working directory)
-    OUTPUT_PATH = 'results_table_regular_encoder.tex'
+    OUTPUT_PATH = 'results_table_late_encoder.tex'
 
     print("Collecting results...")
     results = collect_results(BASE_PATH, DATASETS, MODELS, CHUNKERS, ENCODER)
