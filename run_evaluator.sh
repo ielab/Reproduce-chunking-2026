@@ -32,6 +32,16 @@ fi
 SOURCE_PATH="src/chunked_output"
 DRYRUN=${DRYRUN:-0}
 
+# --- Additional special case check ---
+if [ "$DATASET" = "GutenQA" ] && [ "$CHUNK_RUN_ID" = "Proposition" ]; then
+  CHUNK_JSON_PATH="$SOURCE_PATH/$DATASET/chunks/$CHUNK_RUN_ID/chunks.jsonl"
+  if [ ! -f "$CHUNK_JSON_PATH" ]; then
+    echo "Error: GutenQA Proposition is generated from LumberChunker, so we must ensure this chunks.jsonl exists at $CHUNK_JSON_PATH"
+    exit 1
+  fi
+  echo "Found required chunks file at $CHUNK_JSON_PATH"
+fi
+
 timestamp() { date +"%Y-%m-%d %H:%M:%S"; }
 
 echo "[$(timestamp)] Starting single evaluation job…"

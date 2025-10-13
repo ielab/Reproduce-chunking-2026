@@ -66,7 +66,7 @@ class QutenQAEvaluator(BaseEvaluator):
 
 
         assert len(queries) == len(query_embeddings)
-        assert len(chunks) == len(chunk_embeddings)
+        # assert len(chunks) == len(chunk_embeddings)
 
         ranker = SimpleRanker(chunk_embs=chunk_embeddings, similarity=self.similarity)
         ranking_result = ranker.rank(

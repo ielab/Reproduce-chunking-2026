@@ -204,7 +204,11 @@ def cmd_evaluator(args: argparse.Namespace):
 
     start = time.perf_counter()
 
-    chunk_path = f"{args.source_path}/{args.dataset_name}/chunks/{args.chunk_run_id}/chunks.jsonl"
+    if args.dataset_name == 'GutenQA' and args.chunk_run_id == "Proposition":
+        chunk_path = f"{args.source_path}/{args.dataset_name}/chunks/LumberChunker/chunks.jsonl"
+    else:
+        chunk_path = f"{args.source_path}/{args.dataset_name}/chunks/{args.chunk_run_id}/chunks.jsonl"
+
     query_path = f"{args.source_path}/{args.dataset_name}/queries/{args.query_run_id}/queries.jsonl"
     chunk_embed_path = f"{args.source_path}/{args.dataset_name}/embeddings/{args.chunk_run_id}/{args.chunk_embedding_run_id}/embeddings.pkl"
     query_embed_embed_path = f"{args.source_path}/{args.dataset_name}/query_embeddings/{args.query_run_id}/{args.query_embedding_run_id}/embeddings.pkl"

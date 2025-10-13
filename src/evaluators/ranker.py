@@ -157,21 +157,54 @@ class SimpleRanker:
 
 
 if __name__ == '__main__':
-    dim = 4
-    num_queries = 5
-    num_chunks = 10
-    query_vec = np.random.rand(5, dim)
-    chunk_matrix = np.random.rand(num_chunks, dim)
+    dim = 10
+    num_queries = 4
+    num_chunks = 20
 
-    print(query_vec.shape, chunk_matrix.shape)
 
-    s = doc_sim(query_vec, chunk_matrix)
-    print(s)
-    # top_indices = np.argsort(s, axis=1)[:, -3:][:, ::-1]
-    # top_scores = np.take_along_axis(s, top_indices, axis=1)
-    #
-    # print(top_indices)
-    # print(top_scores)
+    np.random.seed(42)
+    query_vec = np.random.rand(num_queries, dim)
+    print(query_vec.shape)
+
+    q_emb_list = []
+
+    for idx, e in enumerate(query_vec):
+        # print(type(e))
+        q_emb_list.append(
+            QueryEmbedding(
+                query_id=f'Book-0-Query-{idx}',
+                vector=e,
+            )
+        )
+
+    chunk_vec = np.random.rand(num_chunks, dim)
+    chunk_emb_list = []
+    for idx, e in enumerate(chunk_vec):
+        if idx < 3:
+            chunk_id = f'Book-0-Chunk-{0}'
+        else:
+            chunk_id = f'Book-0-Chunk-{1}'
+        chunk_emb_list.append(
+            ChunkEmbedding(
+                doc_id=f'Book-{0}',
+                chunk_id=chunk_id,
+                vector=e,
+            )
+        )
+
+    query_ids = [q.query_id for q in q_emb_list]
+    print('query_ids: ', query_ids)
+    doc_ids = [c.doc_id for c in chunk_emb_list]
+    c_ids = [c.chunk_id for c in chunk_emb_list]
+    print('doc_ids: ', doc_ids)
+    print('c_idx: ', c_ids)
+    # print(chunk_emb_list)
+
+    ranker = SimpleRanker(chunk_emb_list, similarity='cosine')
+
+    rank_result = ranker.rank(query_embs=q_emb_list, top_k_max=3, scope='document')
+
+    print(rank_result)
 
 
 
