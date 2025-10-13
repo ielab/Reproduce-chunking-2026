@@ -202,30 +202,40 @@ def generate_comparison_table(
                 late_score = late_results.get(key)
 
                 if regular_score is not None and late_score is not None:
-                    if regular_score == 0:
+                    # Check for suspicious scores (very low scores that suggest missing/bad data)
+                    if regular_score < 0.001 or late_score < 0.001:
+                        # Scores too low - likely missing or corrupted data
+                        cell_content = '---'
+                    elif regular_score == 0:
                         # Avoid division by zero
                         cell_content = '---'
                     else:
                         # Calculate percentage change: ((late - regular) / regular) * 100
                         pct_change = ((late_score - regular_score) / regular_score) * 100
 
-                        # Check if this is the maximum percentage change for this dataset WITHIN THIS MODEL
-                        max_key = (model, dataset)
-                        is_max = (max_key in max_pct_changes and
-                                 abs(pct_change - max_pct_changes[max_key]) < 1e-6)
-
-                        if pct_change > 0:
-                            # Positive change - light green background
-                            if is_max:
-                                cell_content = f'\\cellcolor{{lightgreen}}\\textbf{{{pct_change:+.2f}}}'
-                            else:
-                                cell_content = f'\\cellcolor{{lightgreen}}{pct_change:+.2f}'
-                        elif pct_change < 0:
-                            # Negative change - light red background
-                            cell_content = f'\\cellcolor{{lightred}}{pct_change:.2f}'
+                        # Sanity check: if percentage change is extreme (>100% improvement or <-50% degradation)
+                        # it's likely bad data
+                        if pct_change < -50 or pct_change > 200:
+                            cell_content = '---'
                         else:
-                            # Zero change - no color
-                            cell_content = f'{pct_change:.2f}'
+                            # Check if this is the maximum percentage change for this dataset WITHIN THIS MODEL
+                            max_key = (model, dataset)
+                            is_max = (max_key in max_pct_changes and
+                                     abs(pct_change - max_pct_changes[max_key]) < 1e-6 and
+                                     pct_change > 0)  # Only bold positive changes
+
+                            if pct_change > 0:
+                                # Positive change - light green background
+                                if is_max:
+                                    cell_content = f'\\cellcolor{{lightgreen}}\\textbf{{{pct_change:+.2f}}}'
+                                else:
+                                    cell_content = f'\\cellcolor{{lightgreen}}{pct_change:+.2f}'
+                            elif pct_change < 0:
+                                # Negative change - light red background
+                                cell_content = f'\\cellcolor{{lightred}}{pct_change:.2f}'
+                            else:
+                                # Zero change - no color
+                                cell_content = f'{pct_change:.2f}'
                 else:
                     # Missing data
                     cell_content = '---'
