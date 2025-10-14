@@ -139,3 +139,26 @@ def write_trec_file(path: str, results: dict, run_name: str, top_k: int = 1000):
                 f.write(f"{query_id} Q0 {doc_id} {rank + 1} {score} {run_name}\n")
 
 
+def load_trec_file(path: str) -> dict:
+    """
+    Load a TREC format file and return ranking results.
+
+    TREC format: query_id Q0 doc_id rank score run_name
+    Returns: {query_id: {doc_id: score}} or {query_id: [(doc_id, score)]} depending on evaluator needs
+    """
+    results = {}
+    with open(path, "r") as f:
+        for line in f:
+            parts = line.strip().split()
+            if len(parts) < 6:
+                continue
+            query_id, _, doc_id, rank, score, run_name = parts[:6]
+
+            if query_id not in results:
+                results[query_id] = {}
+
+            results[query_id][doc_id] = float(score)
+
+    return results
+
+

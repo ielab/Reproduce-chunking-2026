@@ -24,3 +24,5 @@ from src.io.loaders import (
 )
 
 from src.io.jsonl_io import write_evaluation_jsonl
+
+from src.io.sink import load_trec_file, write_trec_file

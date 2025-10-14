@@ -6,3 +6,7 @@ run_chunker.sh
 /.idea
 paper/ecir2026-chunking.pdf
 paper/ecir2026-chunking.pdf
+/src/__pycache__
+/src/chunkers/__pycache__
+/src/io/__pycache__
+/src/processors/__pycache__

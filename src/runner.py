@@ -4,6 +4,9 @@ import sys
 import argparse
 from typing import List
 
+import numpy as np
+from tqdm import tqdm
+
 from src.types import Document, Chunk, Query
 from src.registry import PROCESSOR_REG, CHUNKER_REG, ENCODER_REG, EVALUATOR_REG
 from src.processors import BaseProcessor
@@ -204,29 +207,21 @@ def cmd_evaluator(args: argparse.Namespace):
 
     start = time.perf_counter()
 
+    # Validate skip-search arguments
+    if args.skip_search and not args.trec_file:
+        raise ValueError("--trec-file is required when --skip-search is used")
+
     if args.dataset_name == 'GutenQA' and args.chunk_run_id == "Proposition":
         chunk_path = f"{args.source_path}/{args.dataset_name}/chunks/LumberChunker/chunks.jsonl"
     else:
         chunk_path = f"{args.source_path}/{args.dataset_name}/chunks/{args.chunk_run_id}/chunks.jsonl"
 
     query_path = f"{args.source_path}/{args.dataset_name}/queries/{args.query_run_id}/queries.jsonl"
-    chunk_embed_path = f"{args.source_path}/{args.dataset_name}/embeddings/{args.chunk_run_id}/{args.chunk_embedding_run_id}/embeddings.pkl"
-    query_embed_embed_path = f"{args.source_path}/{args.dataset_name}/query_embeddings/{args.query_run_id}/{args.query_embedding_run_id}/embeddings.pkl"
 
-    # load chunks, queries, chunk embeddings and query embeddings
-    print('Load chunks, queries, chunk embeddings and query embeddings')
+    # Load chunks and queries (always needed)
+    print('Load chunks and queries')
     chunks = load_chunks(chunk_path)
     queries = load_queries(query_path)
-    # chunk_embs = list(load_embeddings(chunk_embed_path))
-    chunk_embs = load_pkl_embeddings(chunk_embed_path)
-
-    # query_embs = load_queries_embeddings(query_embed_embed_path)
-    query_embs = load_pkl_embeddings(query_embed_embed_path)
-    print('Loading time:', time.perf_counter() - start)
-
-    mid = time.perf_counter()
-
-    print("Load successfully!!!")
 
     # register
     evaluator_mapping = {
@@ -243,26 +238,138 @@ def cmd_evaluator(args: argparse.Namespace):
     if evaluator_name is None:
         raise ValueError(f'Evaluator {evaluator_mapping.get(args.dataset_name)} not found in Evaluator mapping.')
 
-    evaluator: BaseEvaluator = EVALUATOR_REG.get(evaluator_name)(
-        scope=args.scope,
-        similarity=args.similarity
-    )
+    if args.skip_search:
+        # Skip search mode: load existing TREC file
+        print(f'Skip-search mode: Loading existing TREC file from {args.trec_file}')
+        ranking_results = load_trec_file(args.trec_file)
+        print('Loading time:', time.perf_counter() - start)
 
-    results = evaluator.evaluate(queries=queries,
-                       query_embeddings=query_embs,
-                       chunks=chunks,
-                       chunk_embeddings=chunk_embs
-                       )
+        mid = time.perf_counter()
+        print("Load successfully!!!")
+
+        # For GutenQA, convert dict to list of tuples format
+        if evaluator_name == 'GutenQA':
+            # Convert {query_id: {chunk_id: score}} to {query_id: [(chunk_id, score)]}
+            ranking_results = {
+                qid: sorted(doc_scores.items(), key=lambda x: x[1], reverse=True)
+                for qid, doc_scores in ranking_results.items()
+            }
+
+        # Build results dict manually for evaluation
+        # We need to compute per-query metrics from the ranking_results
+        qrels = {q.query_id: q.qrels for q in queries}
+
+        if evaluator_name == 'beir':
+            from beir.retrieval.evaluation import EvaluateRetrieval
+            evaluator: BaseEvaluator = EVALUATOR_REG.get(evaluator_name)(
+                scope=args.scope,
+                similarity=args.similarity
+            )
+            retriever = EvaluateRetrieval()
+            k_values = evaluator.k_values
+            ndcg, _map, recall, precision = retriever.evaluate(qrels, ranking_results, k_values)
+
+            # Calculate per-query scores
+            per_query_eval = {}
+            for q_id in tqdm(qrels.keys(), desc="Calculating Per-Query Metrics"):
+                qrels_single = {q_id: qrels[q_id]}
+                results_single = {q_id: ranking_results.get(q_id, {})}
+                ndcg_q, _, recall_q, _ = retriever.evaluate(qrels_single, results_single, k_values)
+
+                query_scores = {}
+                if ndcg_q and recall_q:
+                    for k in k_values:
+                        query_scores[f"NDCG@{k}"] = ndcg_q.get(f"NDCG@{k}", 0.0)
+                        query_scores[f"Recall@{k}"] = recall_q.get(f"Recall@{k}", 0.0)
+
+                per_query_eval[q_id] = query_scores
+
+            print(ndcg)
+            print(recall)
+            results = {'ndcg': ndcg, 'recall': recall, 'per_query_eval': per_query_eval, 'ranking_results': ranking_results}
+
+        elif evaluator_name == 'GutenQA':
+            from collections import defaultdict
+            evaluator: BaseEvaluator = EVALUATOR_REG.get(evaluator_name)(
+                scope=args.scope,
+                similarity=args.similarity
+            )
+            k_values = evaluator.k_values
+
+            # Compute GutenQA metrics from ranking_results
+            chunk_id2text = {c.chunk_id: c.text for c in chunks}
+            ranked_relevance_dict = {}
+
+            from src.evaluators.qutenqa_evaluator import find_index_of_match, compute_DCG, compute_Recall
+
+            for query in tqdm(queries, desc="Calculating GutenQA Metrics"):
+                query_id = query.query_id
+                re_chunk_list = [chunk_id2text.get(c_id) for c_id, _ in ranking_results.get(query_id, [])]
+                relevance = find_index_of_match(re_chunk_list, query.chunk_must_Contain)
+                ranked_relevance_dict[query_id] = relevance
+
+            dcg_dict = defaultdict(list)
+            recall_dict = defaultdict(list)
+
+            for top_k in k_values:
+                for _, relevance in ranked_relevance_dict.items():
+                    dcg = compute_DCG(relevance[:top_k])
+                    recall = compute_Recall(relevance[:top_k])
+                    dcg_dict[top_k].append(dcg)
+                    recall_dict[top_k].append(recall)
+
+            per_query_eval = defaultdict(dict)
+            for top_k in k_values:
+                for i, (query_id, relevance) in enumerate(ranked_relevance_dict.items()):
+                    dcg = compute_DCG(relevance[:top_k])
+                    recall = compute_Recall(relevance[:top_k])
+                    per_query_eval[query_id][f'DCG@{top_k}'] = dcg
+                    per_query_eval[query_id][f'Recall@{top_k}'] = recall
+
+            final_dcg_dict = {f'DCG@{k}': round(np.mean(v), 5) for k, v in dcg_dict.items()}
+            final_recall_dict = {f'Recall@{k}': round(np.mean(v), 5) for k, v in recall_dict.items()}
+
+            print(final_dcg_dict)
+            print(final_recall_dict)
+
+            results = {'dcg': final_dcg_dict, 'recall': final_recall_dict, 'per_query_eval': per_query_eval, 'ranking_results': ranking_results}
+
+    else:
+        # Normal mode: perform search
+        chunk_embed_path = f"{args.source_path}/{args.dataset_name}/embeddings/{args.chunk_run_id}/{args.chunk_embedding_run_id}/embeddings.pkl"
+        query_embed_embed_path = f"{args.source_path}/{args.dataset_name}/query_embeddings/{args.query_run_id}/{args.query_embedding_run_id}/embeddings.pkl"
+
+        print('Load chunk embeddings and query embeddings')
+        chunk_embs = load_pkl_embeddings(chunk_embed_path)
+        query_embs = load_pkl_embeddings(query_embed_embed_path)
+        print('Loading time:', time.perf_counter() - start)
+
+        mid = time.perf_counter()
+        print("Load successfully!!!")
+
+        evaluator: BaseEvaluator = EVALUATOR_REG.get(evaluator_name)(
+            scope=args.scope,
+            similarity=args.similarity
+        )
+
+        results = evaluator.evaluate(queries=queries,
+                           query_embeddings=query_embs,
+                           chunks=chunks,
+                           chunk_embeddings=chunk_embs
+                           )
 
     # Create the output directory structure
     base_results_dir = os.path.join(args.source_path, args.dataset_name, 'results', args.chunk_run_id, args.chunk_embedding_run_id)
     os.makedirs(base_results_dir, exist_ok=True)
 
-    # Save TREC file
+    # Save TREC file (only if not in skip-search mode)
     ranking_results = results.pop('ranking_results')
-    trec_file_path = os.path.join(base_results_dir, "result.trec")
-    write_trec_file(trec_file_path, ranking_results, args.chunk_embedding_run_id, top_k=args.top_k)
-    print(f'[TREC file] wrote -> {trec_file_path}')
+    if not args.skip_search:
+        trec_file_path = os.path.join(base_results_dir, "result.trec")
+        write_trec_file(trec_file_path, ranking_results, args.chunk_embedding_run_id, top_k=args.top_k)
+        print(f'[TREC file] wrote -> {trec_file_path}')
+    else:
+        print(f'[TREC file] Skipped writing (using existing file: {args.trec_file})')
 
     # --- New Evaluation File Saving Logic ---
     per_query_eval = results.pop('per_query_eval')
@@ -354,6 +461,8 @@ def build_parser() -> argparse.ArgumentParser:
     peval.add_argument("--similarity", choices=['cosine', 'dot'])
     peval.add_argument("--source_path", required=True)
     peval.add_argument("--top_k", type=int, default=100, help="Number of top documents to save in TREC file.")
+    peval.add_argument("--skip-search", action='store_true', help="Skip search/ranking step and load existing TREC file for evaluation only.")
+    peval.add_argument("--trec-file", type=str, help="Path to existing TREC file (required if --skip-search is used).")
     peval.set_defaults(func=cmd_evaluator)
 
 
