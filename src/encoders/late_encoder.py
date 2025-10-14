@@ -195,8 +195,13 @@ class LateEncoder(BaseEncoder):
         """
         A streaming implementation to handle extremely long documents without loading the
         entire tokenized document into memory. It processes chunks sequentially.
+
+        Returns:
+            all_doc_vectors: List of numpy arrays (one per document)
+            all_doc_chunk_spans: List of List[Tuple[int, int]] - actual chunk boundaries in the embedding space
         """
         all_doc_vectors = []
+        all_doc_chunk_spans = []
         embed_dim = self.model.get_embed_dim()
 
         cls_token_tensor = torch.tensor([self.tokenizer.cls_token_id])
@@ -207,7 +212,7 @@ class LateEncoder(BaseEncoder):
             prefix_special_token_ids = torch.cat([cls_token_tensor, prefix_token_ids])
         else:
             prefix_special_token_ids = cls_token_tensor
-        
+
         special_tokens_len = len(prefix_special_token_ids) + 1 # CLS + prefix + SEP
 
         # Max tokens for the actual content in each window
@@ -216,15 +221,22 @@ class LateEncoder(BaseEncoder):
         for texts in tqdm(doc_texts, desc="Encoding documents"):
             if not texts:
                 all_doc_vectors.append(np.array([]).reshape(0, embed_dim))
+                all_doc_chunk_spans.append([])
                 continue
 
             # Tokenize all chunks of the current document individually
             chunk_input_ids = self.tokenizer(texts, padding=False, truncation=False, add_special_tokens=False)['input_ids']
-            
-            window_batch = [] # Batch of windows to send to the model
-            current_window_ids = []
 
-            for chunk_ids in chunk_input_ids:
+            # Track chunk boundaries as we build windows
+            chunk_spans = []
+            current_position = 0  # Current position in the concatenated embedding space
+
+            window_batch = [] # Batch of windows to send to the model
+            window_chunk_boundaries = []  # Track which chunks are in each window and their local positions
+            current_window_ids = []
+            current_window_chunks = []  # [(chunk_idx, local_start, local_end), ...]
+
+            for chunk_idx, chunk_ids in enumerate(chunk_input_ids):
                 # If a single chunk is too long, truncate it.
                 if len(chunk_ids) > max_content_len:
                     print(f"Warning: A single chunk is longer than the model's max window size ({max_content_len}). Truncating it.")
@@ -232,21 +244,35 @@ class LateEncoder(BaseEncoder):
 
                 # If the current window is empty or the new chunk fits, add it
                 if not current_window_ids or (len(current_window_ids) + len(chunk_ids)) <= max_content_len:
+                    local_start = len(current_window_ids)
                     current_window_ids.extend(chunk_ids)
+                    local_end = len(current_window_ids)
+                    current_window_chunks.append((chunk_idx, local_start, local_end))
                 # If the chunk doesn't fit, finalize the current window and start a new one
                 else:
                     window_batch.append(torch.tensor(current_window_ids))
-                    current_window_ids = chunk_ids # Start new window with the current chunk
+                    window_chunk_boundaries.append(current_window_chunks)
+
+                    # Start new window with the current chunk
+                    current_window_ids = chunk_ids
+                    current_window_chunks = [(chunk_idx, 0, len(chunk_ids))]
 
             # Add the last remaining window if it's not empty
             if current_window_ids:
                 window_batch.append(torch.tensor(current_window_ids))
+                window_chunk_boundaries.append(current_window_chunks)
 
             # Now, encode all the prepared windows for the document
             doc_vectors = []
+            global_position = 0  # Track position in the concatenated embedding space
+
+            # Prepare chunk spans storage (will be filled as we process windows)
+            chunk_spans = [None] * len(chunk_input_ids)
+
             for i in range(0, len(window_batch), batch_size):
                 sub_batch_windows = window_batch[i:i+batch_size]
-                
+                sub_batch_boundaries = window_chunk_boundaries[i:i+batch_size]
+
                 # Add special tokens and pad
                 padded_inputs = []
                 for window_ids in sub_batch_windows:
@@ -254,7 +280,7 @@ class LateEncoder(BaseEncoder):
                     padded_inputs.append({'input_ids': input_ids})
 
                 batch_inputs, lengths = self._pad_batch(padded_inputs, pad_token_id=self.tokenizer.pad_token_id)
-                
+
                 # Get embeddings
                 last_hidden_state = self.model.get_embeddings_for_inputs(inputs=batch_inputs).last_hidden_state
 
@@ -263,16 +289,27 @@ class LateEncoder(BaseEncoder):
                     # Exclude CLS/prefix and SEP tokens from the final vector
                     vector = last_hidden_state[b_idx, len(prefix_special_token_ids):L-1].detach().cpu()
                     if vector.numel() > 0:
+                        window_start_position = global_position
                         doc_vectors.append(vector)
 
+                        # Update chunk spans for this window
+                        for chunk_idx, local_start, local_end in sub_batch_boundaries[b_idx]:
+                            global_start = window_start_position + local_start
+                            global_end = window_start_position + local_end
+                            chunk_spans[chunk_idx] = (global_start, global_end)
+
+                        global_position += vector.shape[0]
+
             if not doc_vectors:
-                 all_doc_vectors.append(np.array([]).reshape(0, embed_dim))
-                 continue
+                all_doc_vectors.append(np.array([]).reshape(0, embed_dim))
+                all_doc_chunk_spans.append([])
+                continue
 
             V = torch.cat(doc_vectors, dim=0).numpy()
             all_doc_vectors.append(V)
+            all_doc_chunk_spans.append(chunk_spans)
 
-        return all_doc_vectors
+        return all_doc_vectors, all_doc_chunk_spans
 
 
     def encode_passages(self,
@@ -296,8 +333,7 @@ class LateEncoder(BaseEncoder):
         doc_range = self._get_document_range_by_doc_id(doc_id_list)
 
         doc_chunks_list: List[List[Chunk]] = []
-        doc_chunk_spans_list: List[List[Tuple]] = []
-        
+
         # Collect lists of chunk texts for each document
         doc_texts_list: List[List[str]] = []
 
@@ -307,17 +343,14 @@ class LateEncoder(BaseEncoder):
 
             doc_chunks = chunks[doc_start_idx:doc_end_idx]
             doc_text = [c.text for c in doc_chunks]
-            
-            # We still need the spans to map results back to chunks
-            doc_chunk_spans = self._get_chunk_span(doc_text, prefix=prefix)
-            
-            assert len(doc_chunks) == len(doc_chunk_spans)
 
             doc_chunks_list.append(doc_chunks)
-            doc_chunk_spans_list.append(doc_chunk_spans)
             doc_texts_list.append(doc_text)
 
-        vectors: List[np.ndarray] = self.long_late_encode_with_prefix(doc_texts=doc_texts_list, prefix=prefix, batch_size=batch_size)
+        # Get vectors AND actual chunk spans from the encoding process
+        vectors: List[np.ndarray]
+        doc_chunk_spans_list: List[List[Tuple]]
+        vectors, doc_chunk_spans_list = self.long_late_encode_with_prefix(doc_texts=doc_texts_list, prefix=prefix, batch_size=batch_size)
 
         output: List[ChunkEmbedding] = []
 
@@ -338,24 +371,27 @@ class LateEncoder(BaseEncoder):
                     output.append(embedding)
                 continue
 
-            # The assertion is too fragile and can fail due to minor tokenizer differences.
-            # We will rely on gracefully handling span mismatches instead.
-            # assert (len(V) == doc_chunk_spans[-1][-1])
+            # Verify we got spans for all chunks
+            assert len(doc_chunk_spans) == len(doc_chunks), f"Span count mismatch: {len(doc_chunk_spans)} spans vs {len(doc_chunks)} chunks"
 
             for span, chunk in zip(doc_chunk_spans, doc_chunks):
-                start, end = span
-
-                # Gracefully handle span prediction mismatches by capping the span
-                # to the actual length of the embedding vector.
-                start = min(start, len(V))
-                end = min(end, len(V))
-
-                # Handle cases where a chunk span is empty
-                if start >= end:
-                    print(f"Warning: Chunk {chunk.chunk_id} in doc {chunk.doc_id} has an empty or invalid span. Assigning a zero-vector.")
+                if span is None:
+                    print(f"Warning: Chunk {chunk.chunk_id} in doc {chunk.doc_id} has no span. Assigning a zero-vector.")
                     chunk_vector = [0.0] * embed_dim
                 else:
-                    chunk_vector = np.mean(V[start:end], axis=0)
+                    start, end = span
+
+                    # Gracefully handle span prediction mismatches by capping the span
+                    # to the actual length of the embedding vector.
+                    start = min(start, len(V))
+                    end = min(end, len(V))
+
+                    # Handle cases where a chunk span is empty
+                    if start >= end:
+                        print(f"Warning: Chunk {chunk.chunk_id} in doc {chunk.doc_id} has an empty or invalid span ({start}, {end}). Assigning a zero-vector.")
+                        chunk_vector = [0.0] * embed_dim
+                    else:
+                        chunk_vector = np.mean(V[start:end], axis=0)
 
                 if isinstance(chunk_vector, np.ndarray):
                     chunk_vector = chunk_vector.tolist()
