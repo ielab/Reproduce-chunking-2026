@@ -238,12 +238,16 @@ class LateEncoder(BaseEncoder):
 
             for chunk_idx, chunk_ids in enumerate(chunk_input_ids):
                 # If a single chunk is too long, truncate it.
+                original_chunk_len = len(chunk_ids)
                 if len(chunk_ids) > max_content_len:
-                    print(f"Warning: A single chunk is longer than the model's max window size ({max_content_len}). Truncating it.")
+                    print(f"Warning: A single chunk (chunk {chunk_idx}) is longer than the model's max window size ({max_content_len} tokens). Truncating from {original_chunk_len} to {max_content_len} tokens.")
                     chunk_ids = chunk_ids[:max_content_len]
 
+                # Use actual length after truncation
+                actual_chunk_len = len(chunk_ids)
+
                 # If the current window is empty or the new chunk fits, add it
-                if not current_window_ids or (len(current_window_ids) + len(chunk_ids)) <= max_content_len:
+                if not current_window_ids or (len(current_window_ids) + actual_chunk_len) <= max_content_len:
                     local_start = len(current_window_ids)
                     current_window_ids.extend(chunk_ids)
                     local_end = len(current_window_ids)
@@ -254,8 +258,8 @@ class LateEncoder(BaseEncoder):
                     window_chunk_boundaries.append(current_window_chunks)
 
                     # Start new window with the current chunk
-                    current_window_ids = chunk_ids
-                    current_window_chunks = [(chunk_idx, 0, len(chunk_ids))]
+                    current_window_ids = list(chunk_ids)  # Make a copy
+                    current_window_chunks = [(chunk_idx, 0, actual_chunk_len)]
 
             # Add the last remaining window if it's not empty
             if current_window_ids:
@@ -392,6 +396,10 @@ class LateEncoder(BaseEncoder):
                         chunk_vector = [0.0] * embed_dim
                     else:
                         chunk_vector = np.mean(V[start:end], axis=0)
+
+                        # Normalize for models that require it (e.g., Nomic)
+                        if self.backbone in ['Normic', 'JinaaiV2', 'JinaaiV3']:
+                            chunk_vector = chunk_vector / np.linalg.norm(chunk_vector)
 
                 if isinstance(chunk_vector, np.ndarray):
                     chunk_vector = chunk_vector.tolist()

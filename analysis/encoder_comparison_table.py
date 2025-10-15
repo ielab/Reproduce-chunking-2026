@@ -137,9 +137,29 @@ def generate_comparison_table(
             if pct_changes:
                 max_pct_changes[(model, dataset)] = max(pct_changes)
 
+    # Find maximum average percentage change (corpus datasets) PER MODEL
+    max_avg_pct_changes = {}  # key: model, value: max_avg_pct_change
+    for model in models:
+        model_avg_changes = []
+        for chunker in chunkers:
+            corpus_pct_changes = []
+            for dataset in datasets:
+                if dataset == 'GutenQA':
+                    continue
+                key = (model, chunker, dataset)
+                regular_score = regular_results.get(key)
+                late_score = late_results.get(key)
+                if regular_score is not None and late_score is not None and regular_score != 0:
+                    pct_change = ((late_score - regular_score) / regular_score) * 100
+                    corpus_pct_changes.append(pct_change)
+            if corpus_pct_changes:
+                model_avg_changes.append(sum(corpus_pct_changes) / len(corpus_pct_changes))
+        if model_avg_changes:
+            max_avg_pct_changes[model] = max(model_avg_changes)
+
     # Start building the LaTeX table
-    num_cols = len(datasets) + 1  # +1 for model/chunker column
-    col_spec = 'll' + 'c' * len(datasets)
+    num_cols = len(datasets) + 2  # +1 for model/chunker column, +1 for average column
+    col_spec = 'll' + 'c' * (len(datasets) + 1)
 
     latex_lines = []
     latex_lines.append(r'\begin{table}[htbp]')
@@ -161,7 +181,7 @@ def generate_comparison_table(
     if doc_datasets:
         task_row.append(r'\multicolumn{1}{c}{\textbf{\textit{document}}}')
     if corpus_datasets:
-        task_row.append(r'\multicolumn{' + str(len(corpus_datasets)) + r'}{c}{\textbf{\textit{corpus}}}')
+        task_row.append(r'\multicolumn{' + str(len(corpus_datasets) + 1) + r'}{c}{\textbf{\textit{corpus}}}')
     latex_lines.append(' & '.join(task_row) + r' \\')
 
     # Add cmidrules under task row
@@ -169,22 +189,26 @@ def generate_comparison_table(
     # Columns: [empty, empty, GutenQA, corpus datasets...]
     if doc_datasets and corpus_datasets:
         # Document: column 3, Corpus: columns 4 to (3 + len(corpus_datasets))
-        latex_lines.append(r'\cmidrule(lr){3-3} \cmidrule(lr){4-' + str(3 + len(corpus_datasets)) + r'}')
+        latex_lines.append(r'\cmidrule(lr){3-3} \cmidrule(lr){4-' + str(3 + len(corpus_datasets) + 1) + r'}')
     elif doc_datasets:
         latex_lines.append(r'\cmidrule(lr){3-3}')
     elif corpus_datasets:
-        latex_lines.append(r'\cmidrule(lr){3-' + str(2 + len(corpus_datasets)) + r'}')
+        latex_lines.append(r'\cmidrule(lr){3-' + str(2 + len(corpus_datasets) + 1) + r'}')
 
     # Second row: Dataset names
     dataset_row = [' & ']
     for dataset in datasets:
         dataset_row.append(dataset)
+    dataset_row.append('Avg')
     latex_lines.append(' & '.join(dataset_row) + r' \\')
     latex_lines.append(r'\midrule')
 
     # Data rows: Group by model, then by chunker
     for model_idx, model in enumerate(models):
         model_display = get_model_display_name(model)
+
+        # Track per-dataset percentage changes across chunkers for averaging
+        dataset_pct_map = {dataset: [] for dataset in datasets}
 
         for chunker_idx, chunker in enumerate(chunkers):
             chunker_display = get_chunker_display_name(chunker)
@@ -196,55 +220,112 @@ def generate_comparison_table(
                 row = [f'& {chunker_display}']
 
             # Add scores for each dataset
+            corpus_pct_changes = []
             for dataset in datasets:
                 key = (model, chunker, dataset)
                 regular_score = regular_results.get(key)
                 late_score = late_results.get(key)
 
+                pct_change = None
                 if regular_score is not None and late_score is not None:
-                    # Check for suspicious scores (very low scores that suggest missing/bad data)
-                    if regular_score < 0.001 or late_score < 0.001:
-                        # Scores too low - likely missing or corrupted data
-                        cell_content = '---'
-                    elif regular_score == 0:
+                    if regular_score == 0:
                         # Avoid division by zero
                         cell_content = '---'
                     else:
                         # Calculate percentage change: ((late - regular) / regular) * 100
                         pct_change = ((late_score - regular_score) / regular_score) * 100
 
-                        # Sanity check: if percentage change is extreme (>100% improvement or <-50% degradation)
-                        # it's likely bad data
-                        if pct_change < -50 or pct_change > 200:
-                            cell_content = '---'
-                        else:
-                            # Check if this is the maximum percentage change for this dataset WITHIN THIS MODEL
-                            max_key = (model, dataset)
-                            is_max = (max_key in max_pct_changes and
-                                     abs(pct_change - max_pct_changes[max_key]) < 1e-6 and
-                                     pct_change > 0)  # Only bold positive changes
+                        # Check if this is the maximum percentage change for this dataset WITHIN THIS MODEL
+                        max_key = (model, dataset)
+                        is_max = (max_key in max_pct_changes and
+                                 abs(pct_change - max_pct_changes[max_key]) < 1e-6 and
+                                 pct_change > 0)  # Only bold positive changes
 
-                            if pct_change > 0:
-                                # Positive change - light green background
-                                if is_max:
-                                    cell_content = f'\\cellcolor{{lightgreen}}\\textbf{{{pct_change:+.2f}}}'
-                                else:
-                                    cell_content = f'\\cellcolor{{lightgreen}}{pct_change:+.2f}'
-                            elif pct_change < 0:
-                                # Negative change - light red background
-                                cell_content = f'\\cellcolor{{lightred}}{pct_change:.2f}'
+                        if pct_change > 0:
+                            # Positive change - light green background
+                            if is_max:
+                                cell_content = f'\\cellcolor{{lightgreen}}\\textbf{{{pct_change:+.2f}}}'
                             else:
-                                # Zero change - no color
-                                cell_content = f'{pct_change:.2f}'
+                                cell_content = f'\\cellcolor{{lightgreen}}{pct_change:+.2f}'
+                        elif pct_change < 0:
+                            # Negative change - light red background
+                            cell_content = f'\\cellcolor{{lightred}}{pct_change:.2f}'
+                        else:
+                            # Zero change - no color
+                            cell_content = f'{pct_change:.2f}'
                 else:
                     # Missing data
                     cell_content = '---'
 
                 row.append(cell_content)
+                if pct_change is not None and dataset != 'GutenQA':
+                    corpus_pct_changes.append(pct_change)
+                if pct_change is not None:
+                    dataset_pct_map[dataset].append(pct_change)
+
+            # Add average percentage change over corpus datasets
+            if corpus_pct_changes:
+                avg_pct_change = sum(corpus_pct_changes) / len(corpus_pct_changes)
+                max_avg = max_avg_pct_changes.get(model)
+                is_max_avg = (max_avg is not None and
+                              abs(avg_pct_change - max_avg) < 1e-6 and
+                              avg_pct_change > 0)
+
+                if avg_pct_change > 0:
+                    if is_max_avg:
+                        avg_cell = f'\\cellcolor{{lightgreen}}\\textbf{{{avg_pct_change:+.2f}}}'
+                    else:
+                        avg_cell = f'\\cellcolor{{lightgreen}}{avg_pct_change:+.2f}'
+                elif avg_pct_change < 0:
+                    avg_cell = f'\\cellcolor{{lightred}}{avg_pct_change:.2f}'
+                else:
+                    avg_cell = f'{avg_pct_change:.2f}'
+            else:
+                avg_cell = '---'
+
+            row.append(avg_cell)
 
             latex_lines.append(' & '.join(row) + r' \\')
 
         # Add midrule between models (except after the last model)
+        avg_row = ['& \\textbf{Avg}']
+        corpus_avg_changes = []
+        for dataset in datasets:
+            dataset_pct_changes = dataset_pct_map[dataset]
+            if dataset_pct_changes:
+                dataset_avg_change = sum(dataset_pct_changes) / len(dataset_pct_changes)
+                if dataset_avg_change > 0:
+                    avg_row.append(f'\\cellcolor{{lightgreen}}{dataset_avg_change:+.2f}')
+                elif dataset_avg_change < 0:
+                    avg_row.append(f'\\cellcolor{{lightred}}{dataset_avg_change:.2f}')
+                else:
+                    avg_row.append(f'{dataset_avg_change:.2f}')
+                if dataset != 'GutenQA':
+                    corpus_avg_changes.append(dataset_avg_change)
+            else:
+                avg_row.append('---')
+
+        if corpus_avg_changes:
+            overall_avg_change = sum(corpus_avg_changes) / len(corpus_avg_changes)
+            max_avg = max_avg_pct_changes.get(model)
+            is_max_avg = (max_avg is not None and
+                          abs(overall_avg_change - max_avg) < 1e-6 and
+                          overall_avg_change > 0)
+            if overall_avg_change > 0:
+                if is_max_avg:
+                    avg_cell = f'\\cellcolor{{lightgreen}}\\textbf{{{overall_avg_change:+.2f}}}'
+                else:
+                    avg_cell = f'\\cellcolor{{lightgreen}}{overall_avg_change:+.2f}'
+            elif overall_avg_change < 0:
+                avg_cell = f'\\cellcolor{{lightred}}{overall_avg_change:.2f}'
+            else:
+                avg_cell = f'{overall_avg_change:.2f}'
+        else:
+            avg_cell = '---'
+
+        avg_row.append(avg_cell)
+        latex_lines.append(' & '.join(avg_row) + r' \\')
+
         if model_idx < len(models) - 1:
             latex_lines.append(r'\midrule')
 

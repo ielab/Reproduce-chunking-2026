@@ -203,6 +203,9 @@ def generate_latex_table(
     for model_idx, model in enumerate(models):
         model_display = get_model_display_name(model)
 
+        # Track per-dataset scores across chunkers for later averaging
+        dataset_scores_map = {dataset: [] for dataset in datasets}
+
         for chunker_idx, chunker in enumerate(chunkers):
             chunker_display = get_chunker_display_name(chunker)
 
@@ -228,6 +231,7 @@ def generate_latex_table(
                     # Collect corpus scores for average (exclude GutenQA)
                     if dataset != 'GutenQA':
                         corpus_scores.append(score)
+                    dataset_scores_map[dataset].append(score)
                 else:
                     row.append('---')
 
@@ -245,7 +249,28 @@ def generate_latex_table(
 
             latex_lines.append(' & '.join(row) + r' \\')
 
-        # Add midrule between models (except after the last model)
+        # Add per-model average row across chunkers
+        avg_row = ['& \\textbf{Avg}']
+        corpus_avg_values = []
+        for dataset in datasets:
+            dataset_scores = dataset_scores_map[dataset]
+            if dataset_scores:
+                dataset_avg = sum(dataset_scores) / len(dataset_scores)
+                avg_row.append(f'{dataset_avg:.4f}')
+                if dataset != 'GutenQA':
+                    corpus_avg_values.append(dataset_avg)
+            else:
+                avg_row.append('---')
+
+        if corpus_avg_values:
+            corpus_avg = sum(corpus_avg_values) / len(corpus_avg_values)
+            avg_row.append(f'{corpus_avg:.4f}')
+        else:
+            avg_row.append('---')
+
+        latex_lines.append(' & '.join(avg_row) + r' \\')
+
+        # Separator between model blocks (after average row)
         if model_idx < len(models) - 1:
             latex_lines.append(r'\midrule')
 
