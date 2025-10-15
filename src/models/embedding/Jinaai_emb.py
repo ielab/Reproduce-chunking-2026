@@ -44,13 +44,6 @@ class JinaaiEmbeddingModelV3(BaseEmbeddingModel):
     def __init__(self, model_name: str):
 
         super().__init__(model_name)
-        self.prompts = {
-        "retrieval.query": "Represent the query for retrieving evidence documents: ",
-        "retrieval.passage": "Represent the document for retrieval: ",
-        "separation": "",
-        "classification": "",
-        "text-matching": ""
-    }
 
     @property
     def model_id(self) -> str:
@@ -73,9 +66,6 @@ class JinaaiEmbeddingModelV3(BaseEmbeddingModel):
     def get_all_token_embeddings(self, texts: List[str], **kwargs):
 
         task = kwargs.get("task")
-        if task is not None:
-            prefix = self.prompts[task]
-            texts = [prefix + text for text in texts]
 
         inputs = self.tokenizer(
             texts,
@@ -84,8 +74,14 @@ class JinaaiEmbeddingModelV3(BaseEmbeddingModel):
             truncation=True
         ).to(self.model.device)
 
+        model_kwargs = {}
+        if task is not None:
+            task_id = self.model._adaptation_map[task]
+            adapter_mask = torch.full((len(texts),), task_id, dtype=torch.int32).to(self.model.device)
+            model_kwargs['adapter_mask'] = adapter_mask
+
         with torch.no_grad():
-            outputs = self.model(**inputs)
+            outputs = self.model(**inputs, **model_kwargs)
 
         return outputs
 

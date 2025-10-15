@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.8.23)  15 OCT 2025 13:34
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.8.23)  16 OCT 2025 09:37
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -604,29 +604,49 @@ LaTeX Font Info:    Trying to load font information for U+msb on input line 60.
 (/usr/local/texlive/2025/texmf-dist/tex/latex/amsfonts/umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 )
-Overfull \hbox (6.04173pt too wide) in paragraph at lines 66--67
-\OT1/cmr/m/n/9 chunk con-text in the re-sult-ing em-bed-dings. Con-cur-rently, 
-nu-mer-ous chunk-
+
+LaTeX Warning: Citation `densex2024' on page 1 undefined on input line 66.
+
+
+LaTeX Warning: Citation `lumberchunker2024' on page 1 undefined on input line 6
+6.
+
+
+LaTeX Warning: Citation `latechunking2024' on page 1 undefined on input line 66
+.
+
+
+Overfull \hbox (0.81152pt too wide) in paragraph at lines 68--72
+\OT1/cmr/m/n/9 (2) the \OT1/cmr/m/it/9 seg-men-ta-tion meth-ods \OT1/cmr/m/n/9 
+(tra-di-tional fixed-size, sentence/paragraph-
  []
 
 (./sections/introduction.tex
 
-LaTeX Warning: Citation `propositions' on page 1 undefined on input line 5.
+LaTeX Warning: Citation `densex2024' on page 1 undefined on input line 5.
 
 
-LaTeX Warning: Citation `lumberchunker' on page 1 undefined on input line 5.
+LaTeX Warning: Citation `lumberchunker2024' on page 1 undefined on input line 5
+.
 
 
-LaTeX Warning: Citation `bert?' on page 1 undefined on input line 5.
+LaTeX Warning: Citation `e5' on page 1 undefined on input line 5.
 
 
-LaTeX Warning: Citation `latechunking' on page 1 undefined on input line 5.
+LaTeX Warning: Citation `jina' on page 1 undefined on input line 5.
 
 
-LaTeX Warning: Citation `propositions' on page 1 undefined on input line 6.
+LaTeX Warning: Citation `bge' on page 1 undefined on input line 5.
 
 
-LaTeX Warning: Citation `lumberchunker' on page 1 undefined on input line 6.
+LaTeX Warning: Citation `latechunking2024' on page 1 undefined on input line 5.
+
+
+
+Overfull \hbox (10.19978pt too wide) in paragraph at lines 5--6
+\OT1/cmr/m/n/10 chunk in-de-pen-dently us-ing a dense en-coder. This \OT1/cmr/m
+/it/10 pre-embedding chunk-ing \OT1/cmr/m/n/10 paradigm
+ []
 
 
 
@@ -635,27 +655,43 @@ LaTeX Warning: Citation `lumberchunker' on page 1 undefined on input line 6.
 {/usr/local/texlive/2025/texmf-var/fonts/map/pdftex/updmap/pdftex.map}{/usr/loc
 al/texlive/2025/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.enc}]
 
-LaTeX Warning: Citation `propositions' on page 2 undefined on input line 9.
+LaTeX Warning: Citation ` ' on page 2 undefined on input line 8.
 
 
-LaTeX Warning: Citation `lumberchunker' on page 2 undefined on input line 9.
+LaTeX Warning: Citation `propositions2024' on page 2 undefined on input line 8.
 
 
-LaTeX Warning: Citation `propositions' on page 2 undefined on input line 9.
+
+LaTeX Warning: Citation `densex2024' on page 2 undefined on input line 8.
 
 
-LaTeX Warning: Citation `lumberchunker' on page 2 undefined on input line 9.
+LaTeX Warning: Citation `lumberchunker2024' on page 2 undefined on input line 8
+.
 
 
-LaTeX Warning: Citation `latechunking' on page 2 undefined on input line 9.
+LaTeX Warning: Citation `propositions2024' on page 2 undefined on input line 8.
 
 
+
+LaTeX Warning: Citation `lumberchunker2024' on page 2 undefined on input line 8
+.
+
+
+LaTeX Warning: Citation `latechunking2024' on page 2 undefined on input line 8.
+
+
+
+Overfull \hbox (9.016pt too wide) in paragraph at lines 8--9
+\OT1/cmr/m/n/10 leng-ing. For in-stance, proposition-based meth-ods were eval-u
+-ated us-ing constrained-
+ []
+
+) (./sections/methods.tex
 Underfull \vbox (badness 2158) has occurred while \output is active []
 
 
 
-[2]) (./sections/methods.tex) (./sections/experimental_setup.tex)
-(./sections/results.tex
+[2]) (./sections/experimental_setup.tex) (./sections/results.tex
 Overfull \hbox (4.03163pt too wide) in paragraph at lines 5--44
  [][] 
  []
@@ -692,13 +728,13 @@ Package rerunfilecheck Info: File `ecir2026-chunking.out' has not changed.
 (rerunfilecheck)             Checksum: 1B7A5DC42A524DB6607EF64907AC7F57;712.
  ) 
 Here is how much of TeX's memory you used:
- 12514 strings out of 473190
- 198911 string characters out of 5715800
- 686190 words of memory out of 5000000
- 35562 multiletter control sequences out of 15000+600000
- 566506 words of font info for 65 fonts, out of 8000000 for 9000
+ 12518 strings out of 473190
+ 198949 string characters out of 5715800
+ 685190 words of memory out of 5000000
+ 35564 multiletter control sequences out of 15000+600000
+ 567018 words of font info for 67 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 75i,13n,79p,1327b,447s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 75i,13n,79p,1378b,447s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb
 ></usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb>
 </usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx9.pfb></
@@ -706,11 +742,13 @@ usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmbxti10.pfb><
 /usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></u
 sr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr9.pfb></usr/
 local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></usr/l
-ocal/texlive/2025/texmf-dist/fonts/type1/public/cm-super/sfrm0900.pfb>
-Output written on ecir2026-chunking.pdf (6 pages, 132383 bytes).
+ocal/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmti9.pfb></usr/loc
+al/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt9.pfb></usr/local
+/texlive/2025/texmf-dist/fonts/type1/public/cm-super/sfrm0900.pfb>
+Output written on ecir2026-chunking.pdf (6 pages, 154803 bytes).
 PDF statistics:
- 95 PDF objects out of 1000 (max. 8388607)
- 70 compressed objects within 1 object stream
+ 106 PDF objects out of 1000 (max. 8388607)
+ 77 compressed objects within 1 object stream
  20 named destinations out of 1000 (max. 500000)
  9 words of extra memory for PDF output out of 10000 (max. 10000000)
 
