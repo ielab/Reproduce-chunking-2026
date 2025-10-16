@@ -1,3 +1,22 @@
+
+\section{Result}
+
+
+\subsection{RQ1: Impact of Segmentation Methods in Multi-Document Retrieval}
+
+To establish baseline performance characteristics of different segmentation methods, we evaluated six chunking strategies across seven BEIR datasets using four state-of-the-art embedding models. Table~\ref{tab:results_regular_encoder} presents the results using traditional pre-embedding chunking, focusing on the corpus-level retrieval columns (fiqa through scidocs).
+
+\textbf{No single segmentation method dominates across all scenarios.} The effectiveness of segmentation methods varies significantly depending on the embedding model and dataset characteristics. Across the six corpus-level retrieval tasks, paragraph-based chunking achieves the highest average performance for three out of four models (Jina-v2: 0.4303, Jina-v3: 0.4948, E5-Large: 0.4997), while fixed-size chunking performs best with Nomic embeddings (0.4828). This suggests that the optimal segmentation strategy depends on how different embedding models encode semantic boundaries.
+
+\textbf{LLM-guided methods underperform in multi-document settings.} Contrary to expectations, sophisticated LLM-guided approaches (LumberChunker and Proposition-based) do not outperform simpler methods. Proposition-based chunking consistently yields the lowest average scores across all models (ranging from 0.3487 to 0.3916), while LumberChunker ranks fourth or fifth in average corpus performance. For instance, with Jina-v3, paragraph chunking outperforms LumberChunker by 11\% (0.4948 vs 0.4463) and Proposition-based by 26\% (0.4948 vs 0.3916).
+
+\textbf{Dataset characteristics influence segmentation effectiveness.} Performance patterns vary across different corpus types. For domain-specific datasets like SciFact and TREC-COVID, sentence-based chunking often performs competitively or best (e.g., SciFact with Jina-v2: 0.6548, TREC-COVID with Nomic: 0.7859 for fixed-size). In contrast, for argumentative text (ArguAna), paragraph and fixed-size chunking consistently outperform more sophisticated methods, suggesting that natural discourse boundaries are crucial for certain retrieval tasks.
+
+\textbf{Model architecture affects segmentation sensitivity.} The variance in performance across segmentation methods differs substantially between models. Jina-v2 shows the highest sensitivity to segmentation choice with a 23\% performance gap between best and worst methods (0.4303 vs 0.3487), while E5-Large shows more robustness with only a 11\% gap (0.4997 vs 0.3883). This indicates that some embedding models are inherently better at handling suboptimal chunk boundaries.
+
+\textbf{Overall, our results reveal that simple segmentation methods are most effective for multi-document retrieval.} Paragraph-based chunking emerges as the most reliable choice, achieving the highest average performance in three of four models and consistently ranking in the top-2 across individual datasets. Fixed-size chunking offers comparable performance (within 2\% of paragraph chunking on average) with computational advantages. Surprisingly, LLM-guided methods significantly underperform despite their sophistication: Proposition-based chunking averages 15-20\% lower performance than paragraph chunking across all models. This answers RQ1 by demonstrating that for standard multi-document retrieval, simpler segmentation methods that respect natural document boundaries (paragraphs) or use consistent sizes provide superior effectiveness and robustness compared to semantic-aware chunking strategies.
+
+
 \begin{table}[htbp]
 	\centering
 	\caption{Performance comparison across different models, chunking strategies, and datasets using DCG@10 for GutenQA and nDCG@10 for other datasets (RegularEncoder)}
@@ -45,6 +64,7 @@
 
 
 
+\section{RQ2: Robustness of In-document retrieval}
 
 
 \begin{table}[htbp]
@@ -95,6 +115,7 @@
 
 
 
+\section{RQ3: Effectiveness of Contextualised Chunking}
 
 \begin{table}[htbp]
 	\centering
@@ -146,5 +167,6 @@
 
 
 
+\section{RQ4: Other Factors}
 
 
