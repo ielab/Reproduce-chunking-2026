@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.8.23)  16 OCT 2025 09:37
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.8.23)  16 OCT 2025 12:16
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -686,12 +686,15 @@ Overfull \hbox (9.016pt too wide) in paragraph at lines 8--9
 -ated us-ing constrained-
  []
 
-) (./sections/methods.tex
-Underfull \vbox (badness 2158) has occurred while \output is active []
 
 
+[2]) (./sections/methods.tex
+Overfull \hbox (11.21042pt too wide) in paragraph at lines 21--1
+\OT1/cmr/m/n/10 (2) iden-tify which chunk-ing strate-gies are ro-bust across di
+f-fer-ent re-trieval paradigms
+ []
 
-[2]) (./sections/experimental_setup.tex) (./sections/results.tex
+) (./sections/experimental_setup.tex) (./sections/results.tex
 Overfull \hbox (4.03163pt too wide) in paragraph at lines 5--44
  [][] 
  []
@@ -745,7 +748,7 @@ local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></usr/l
 ocal/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmti9.pfb></usr/loc
 al/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt9.pfb></usr/local
 /texlive/2025/texmf-dist/fonts/type1/public/cm-super/sfrm0900.pfb>
-Output written on ecir2026-chunking.pdf (6 pages, 154803 bytes).
+Output written on ecir2026-chunking.pdf (6 pages, 159010 bytes).
 PDF statistics:
  106 PDF objects out of 1000 (max. 8388607)
  77 compressed objects within 1 object stream
