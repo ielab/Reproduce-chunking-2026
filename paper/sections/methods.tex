@@ -37,14 +37,14 @@ These advanced methods use models to analyze the text's meaning and identify mor
 It is important to note that semantically-informed and LLM-guided strategies often build upon structure-based heuristics. For example, semantic sentence splitting relies on an initial sentence segmentation, while both proposition-based chunking and LumberChunker typically operate on paragraph-level text.
 
 
-\subsection{Embedding Paradigms: Pre-Embedding vs. Contextualized Chunking}
+\subsection{Pre-Embedding vs. Contextualized Chunking}
 
-The second dimension of our framework is the order in which chunking and embedding are performed.
+The second dimension of our framework is \textbf{Embedding Paradigms}: the order in which chunking and embedding are performed.
 The \textit{pre-embedding} paradigm, which has been the traditional approach, segments the document first and then encodes each chunk in isolation. This design is simple and scalable but loses all contextual information across chunks.
 
 In contrast, the \textit{contextualized chunking} paradigm (also known as late chunking) reverses this order. First, a long-context encoder processes the entire document, generating token-level embeddings that are aware of the global context~\cite{gunther_late_2025}. Only then are chunk boundaries applied. The final embedding for each chunk is produced by pooling (e.g., averaging) the embeddings of the tokens it contains. This approach preserves cross-chunk relationships at the cost of higher computational and memory requirements.
 
-\subsection{Common Evaluation Paradigms}
+\subsection{Evaluation Paradigms}
 As noted in the introduction, prior work has used inconsistent settings, making direct comparisons difficult. To ensure a fair evaluation, we test each chunking strategy across the two dominant retrieval paradigms:
 \begin{itemize}
 	\item \textbf{In-Document Retrieval:} Also known as "needle-in-a-haystack," this task involves finding a specific piece of information within a single long document. It tests a method's ability to precisely locate content.
