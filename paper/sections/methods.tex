@@ -1,54 +1,54 @@
 
-\section{Benchmarking Document Segmentation Strategies}
+\section{Benchmarking Document Chunking Strategies}
+\label{sec:benchmarking_document_segmentation_strategies}
 
-To systematically analyze the effects of document segmentation on retrieval performance, we formalize a unified taxonomy that captures the diversity of chunking strategies proposed in prior work. Document segmentation can be characterized along two orthogonal dimensions: (1) segmentation granularity, which concerns how boundaries within the text are determined, and (2) the order of chunking and embedding, which specifies whether chunking occurs before or after embedding. The first dimension differentiates segmentation methods based on how they define meaningful textual units—from fixed-size windows to semantically coherent spans, while the second distinguishes between traditional pre-embedding and contextualized chunking pipelines.
+Document chunking translates raw text into retrievable units and therefore sits at the critical interface between corpus preparation and dense retrieval. To reason about the wide range of published chunkers, we organize the design space along two orthogonal dimensions: (1) \textbf{chunk boundary granularity}, i.e., how textual boundaries are detected, and (2) \textbf{embedding order}, i.e., whether chunking happens before or after contextual representations are produced. The taxonomy below provides common terminology for our experimental comparisons and highlights where new techniques diverge from conventional pipelines.
 
-\subsection{Taxonomy of Document Segmentation Method}
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.8\textwidth]{pics/chunking-embedding-pipeline.png}
+    \caption{Unified framework for evaluating document chunking strategies across retrieval paradigms. Documents from BEIR and GutenQA datasets are segmented using one of several methods: fixed-size, paragraph-based, sentence-based, semantic sentence-based, propositional, or LLM-guided chunking (e.g., LumberChunker). Depending on the configuration, embeddings are generated either before chunking (\textit{pre-embedding chunking}) or after full-document encoding (\textit{contextualized chunking}, e.g., Late Chunking). Resulting chunk embeddings are indexed and evaluated under two retrieval settings: (1) \textit{in-document retrieval} (needle-in-a-haystack) and (2) \textit{in-corpus retrieval} (multi-document). The pipeline supports multiple embedding and generative model families (e.g., \textsc{E5}, \textsc{Jina}, \textsc{Nomic}, \textsc{OpenAI})~\cite{E5-OpenAI}, enabling controlled comparison across chunking paradigms and model capacities.}
+    \label{fig:chunking-embedding-pipeline}
+\end{figure}
 
-% Document segmentation strategies can be categorized along two complementary dimensions: (1) segmentation granularity, which concerns how boundaries within the text are determined, and (2) the order of chunking and embedding, which specifies whether chunking occurs before or after embedding. Along the first dimension, methods range from simple syntactic segmentation to semantically informed boundary detection. Along the second, segmentation may take place either at the pre-embedding or after contextualized embeddings have been produced.
+\subsection{Taxonomy of Chunking Strategies}
 
-\subsubsection{Traditional Methods}
-Traditional segmentation approaches rely on surface-level text structures or fixed token budgets rather than semantic coherence. The most common variants include:
+We divide chunking strategies into structure-preserving heuristics and semantically informed approaches. Both families can be instantiated with different hyper-parameters (window size, overlap, confidence thresholds), but they reflect distinct assumptions about how meaningful retrieval units should be constructed.
+
+\subsubsection{Structure-Preserving Heuristics}
+Heuristic chunkers rely on observable surface structure and have historically dominated production retrieval systems because they are deterministic, fast, and easy to parallelize~\ref{todo:heuristics-history}. We consider three representatives:
 \begin{itemize}
-    \item \textbf{Fixed-size segmentation}: divides documents into equally sized windows of tokens or characters, often with partial overlaps to preserve contextual continuity. This method is computationally efficient and model-agnostic, making it the default in large-scale retrieval pipelines. However, it may fragment semantically complete units such as sentences or paragraphs.
-    \item \textbf{Paragraph-based segmentation}: uses naturally occurring paragraph boundaries, preserving more contextual coherence while maintaining simplicity. This method performs well for well-structured text such as news or academic writing but is less robust for unstructured sources like forums.
-    \item \textbf{Sentence-based segmentation}: splits text at sentence boundaries using syntactic markers or sentence tokenizers. It produces fine-grained units suitable for question answering or sentence-level reasoning but often lacks sufficient context for long-form semantic retrieval.
+    \item \textbf{Fixed-size windows} partition the document into contiguous spans of a preset token length, optionally with overlap to soften boundary effects. Their main appeal is hardware efficiency because index sharding and batch encoding are straightforward, but they may cut through coherent discourse units, creating embeddings that blend unrelated topics~\cite{multi_hop_retrieval}.
+    \item \textbf{Paragraph boundaries} treat author-provided paragraph breaks as chunk anchors. This respects document-level structure with negligible preprocessing cost and often aligns with topical shifts in well-edited corpora such as news or scientific articles~\ref{todo:paragraph-retrieval}.
+    \item \textbf{Sentence blocks} aggregate a small, fixed number of consecutive sentences. This yields finer-grained segments that are attractive for QA-style tasks where precise answer localization matters, though the shorter context can harm recall when evidence is distributed across a broader span~\ref{todo:sentence-qa}.
 \end{itemize}
 
-These approaches are widely adopted due to their simplicity and general applicability. Nevertheless, they fail to capture deeper discourse structures, leading to retrieval inefficiencies when semantic units span multiple sentences or paragraphs~\cite{multi_hop_retrieval}.
+These heuristics illustrate the trade-off between computational efficiency and semantic completeness. Because they ignore discourse cohesion beyond surface cues, effectiveness can degrade when relevant information straddles boundary decisions, motivating more adaptive chunkers.
 
-
-\subsubsection{Semantic and LLM-Guided Segmentation Methods}
-Recent advances in representation learning and large language models have enabled segmentation strategies that consider semantic continuity and discourse structure than surface cues. These methods dynamically adjust chunk boundaries to align with meaning shift, improving coherence and retrievability. 
-
+\subsubsection{Semantically Informed and LLM-Guided Strategies}
+Recent work leverages contextual representations or large language models (LLMs) to place boundaries at semantic inflection points instead of predetermined offsets. The intuition is to preserve the internal coherence of each chunk so that dense retrievers operate on self-contained units~\ref{todo:semantic-splitting}.
 \begin{itemize}
-    \item \textbf{Semantic Sentence segmentation}~\cite{greg_5_levels_of_text_splitting_nodate}: Computes similarity between adjacent sentence spans using embeddings-based metrics, placing boundaries where semantic discontinuities occur. This produces variable-length chunks that better preserve topical integrity.
-    \item \textbf{Proposition-based segmentation}~\cite{chen_dense_2024}: decomposes text into atomic semantic propositions via large language models. Each chunk represents a minimal self-contained fact, making this approach particularly effective for factoid-style QA and knowledge retrieval tasks.
-    \item \textbf{LLM-guided chunking (LumberChunker)}~\cite{duarte_lumberchunker_2024}:  Employs large language models to reason over discourse-level structure and topic transitions, identifying optimal breakpoints that align with semantic and rhetorical boundaries. Unlike embedding-based segmentation, LLM-guided approaches can leverage higher-level reasoning and adapt to diverse document types.
+    \item \textbf{Semantic sentence chunking} computes similarity between adjacent sentences using lightweight embedding models and inserts a boundary when topical drift exceeds a threshold~\cite{greg_5_levels_of_text_splitting_nodate}. The resulting variable-length segments adapt to discourse structure while remaining automation-friendly.
+    \item \textbf{Proposition-level chunking} decomposes text into minimal factual statements (``propositions'') via prompt-engineered LLMs~\cite{chen_dense_2024}. Each chunk aims to capture an atomic claim, which is beneficial for factoid retrieval but can explode the number of segments and increase indexing cost.
+    \item \textbf{LLM-guided chunking (e.g., LumberChunker)} explicitly asks an LLM to mark coherent sections after reading the surrounding context~\cite{duarte_lumberchunker_2024}. This approach can exploit discourse cues that embeddings miss (narrative arcs, rhetorical structure), yet its cost scales with token limits and inference latency, constraining applicability to large corpora~\ref{todo:llm-cost}.
 \end{itemize}
 
-%-------------------------------------------------
+These strategies sacrifice some determinism for semantic fidelity. In our experiments we instantiate each chunker using publicly released implementations wherever possible to ensure comparability with prior reports~\ref{todo:impl-sources}.
 
-\subsection{Pre-embedding vs. Contextualized Chunking}
+\subsection{Pre-Embedding vs. Contextualized Chunking}
 
-The second dimension of our taxonomy concerns the order of chunking and embedding. In the \textit{pre-embedding} paradigm, segmentation is performed first, and each chunk is independently encoded into a dense vector. This remains the standard pipeline for most retrieval systems, as it enables straightforward indexing and parallelization. However, it discards cross-chunk context since each segment is processed in isolation, leading to potential coherence loss when relevant information spans multiple segments.
+The second axis of our taxonomy concerns \textbf{when} chunking occurs relative to representation learning. Traditional \textit{pre-embedding} pipelines segment first, then encode each chunk independently~\ref{todo:pre-embedding-pipelines}. This design enables embarrassingly parallel encoding and straightforward inverted-file style indexing, but it strips away inter-chunk context because the encoder never observes more than one span at a time. When relevant evidence spans multiple segments, the resulting embeddings may be incomplete or inconsistent.
 
-In contrast, \textit{contextualized chunking} methods, such as Late Chunking~\cite{gunther_late_2025}, generate embeddings for the entire document before segmentation. Rather than embedding each chunk separately, the full document is passed through a long-context encoder that produces token-level representations incorporating global context. Chunk boundaries may then be determined dynamically or follow predefined spans, and the contextualized token embeddings within each span are subsequently aggregated (e.g., via mean pooling) to form chunk-level representations.
+\textit{Contextualized chunking} (also called late chunking) inverts this order. Long-context encoders process the entire document (or large overlapping windows) to produce token-level embeddings that already incorporate global information~\cite{gunther_late_2025}. Afterward, chunk boundaries, whether fixed windows or LLM-derived spans, are applied to the contextualized tokens, and segment embeddings are aggregated through pooling or attention-based summarization~\ref{todo:contextual-pooling}. This preserves cross-span cues (e.g., entity co-reference, causal chains) while still exposing chunk-level vectors to downstream retrievers.
 
-This distinction provides a foundation for analyzing how the order of chunking and embedding interacts with boundary granularity. Contextualized embeddings can mitigate the coherence loss inherent in fixed-size segmentation, while semantically informed segmentation can enhance pre-embedding approaches even when context windows are limited.
+The choice between these paradigms affects computational budgets and memory footprints. Pre-embedding scales gracefully to web-scale corpora but can underperform when the optimal chunk size exceeds an encoder's maximum context length. Contextualized chunking mitigates that issue at the cost of longer forward passes, additional pooling logic, and more complex engineering around sliding windows for very long documents~\ref{todo:late-overhead}. Our evaluation therefore contrasts both orders under matched chunking policies to isolate when the additional expense is justified.
 
-%-------------------------------------------------
+\subsection{Mismatch in Evaluation Protocols}
 
-
-\subsection{Mismatch in Evaluation}
-
-Existing studies vary not only in segmentation design but also in their evaluation protocols, leading to confounding differences that hinder fair comparison. Two dominant paradigms emerge:
-
+Prior work on chunking spans heterogeneous evaluation settings, complicating direct comparison of reported gains~\cite{densex2024, lumberchunker2024, latechunking2024}. Two paradigms dominate:
 \begin{itemize}
-    \item \textbf{In-document (needle-in-a-haystack) retrieval} evaluates the ability to locate relevant passages within a single long document, works for the scenario which already given a long document, then retrieval the relevant chunk in the document. This setting emphasizes fine-grained semantic localization, rewarding methods that produce coherent, contextually rich segments, often favoring LLM-guided or semantic approaches.
-    \item \textbf{In-corpus (multi-document) retrieval} assesses performance across a large collection, such as MS MARCO~\cite{bajaj_ms_2018} or BEIR benchmarks~\cite{thakur_beir_2021}. In this setting, embedding consistency and retrieval efficiency play a larger role.
+    \item \textbf{In-document (needle-in-a-haystack) retrieval} restricts the search space to a single long document and measures how quickly a method surfaces the relevant passage. Datasets such as GutenQA stress precise localization, rewarding chunkers that preserve narrative continuity and suppress noisy overlap~\ref{todo:needle-benchmarks}.
+    \item \textbf{In-corpus (multi-document) retrieval} evaluates ranking quality across a large, heterogeneous collection like MS MARCO or the BEIR suite~\cite{bajaj_ms_2018, thakur_beir_2021}. Here, scalability, indexing efficiency, and robustness to domain shifts become critical, sometimes favoring simpler chunk boundaries that align with batching constraints.
 \end{itemize}
 
-
-These paradigms test distinct aspects of segmentation quality. The former tests fine-grained semantic localization, while the latter assesses large-scale retrieval robustness and efficiency. The absence of a unified benchmarking framework makes it unclear whether performance differences arise from segmentation quality or from variations in embedding model capacity, dataset structure, or retrieval scope.
-
+The literature often varies additional factors simultaneously, including embedding models, context-window limits, and negative sampling strategies, leaving open whether the observed improvements stem from the chunker itself or from confounding experimental conditions~\ref{todo:confounded-evals}. By reproducing representative methods under a single unified framework, we disentangle these influences and quantify which chunking decisions truly matter for each retrieval regime.

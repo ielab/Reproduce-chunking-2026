@@ -2,24 +2,24 @@
 \section{Result}
 
 
-\subsection{RQ1: Impact of Segmentation Methods in Multi-Document Retrieval}
+\subsection{RQ1: Impact of Chunking Strategies in Multi-Document Retrieval}
 
-To establish baseline performance characteristics of different segmentation methods, we evaluated six chunking strategies across seven BEIR datasets using four state-of-the-art embedding models. Table~\ref{tab:results_regular_encoder} presents the results using traditional pre-embedding chunking, focusing on the corpus-level retrieval columns (fiqa through scidocs).
+To establish baseline effectiveness characteristics of different chunking strategies, we evaluated six chunkers across seven BEIR datasets using four state-of-the-art embedding models. Table~\ref{tab:results_regular_encoder} presents the results using traditional pre-embedding chunking, focusing on the corpus-level retrieval columns (fiqa through scidocs).
 
-\textbf{No single segmentation method dominates across all scenarios.} The effectiveness of segmentation methods varies significantly depending on the embedding model and dataset characteristics. Across the six corpus-level retrieval tasks, paragraph-based chunking achieves the highest average performance for three out of four models (Jina-v2: 0.4303, Jina-v3: 0.4948, E5-Large: 0.4997), while fixed-size chunking performs best with Nomic embeddings (0.4828). This suggests that the optimal segmentation strategy depends on how different embedding models encode semantic boundaries.
+\textbf{No single chunking strategy dominates across all scenarios.} The effectiveness of chunkers varies significantly depending on the embedding model and dataset characteristics. Across the six corpus-level retrieval tasks, paragraph-based chunking achieves the highest average effectiveness for three out of four models (Jina-v2: 0.4303, Jina-v3: 0.4948, E5-Large: 0.4997), while fixed-size chunking performs best with Nomic embeddings (0.4828). This suggests that the optimal strategy depends on how different embedding models encode semantic boundaries.
 
-\textbf{LLM-guided methods underperform in multi-document settings.} Contrary to expectations, sophisticated LLM-guided approaches (LumberChunker and Proposition-based) do not outperform simpler methods. Proposition-based chunking consistently yields the lowest average scores across all models (ranging from 0.3487 to 0.3916), while LumberChunker ranks fourth or fifth in average corpus performance. For instance, with Jina-v3, paragraph chunking outperforms LumberChunker by 11\% (0.4948 vs 0.4463) and Proposition-based by 26\% (0.4948 vs 0.3916).
+\textbf{LLM-guided strategies underperform in multi-document settings.} Contrary to expectations, sophisticated LLM-guided approaches (LumberChunker and proposition-level chunking) do not outperform simpler chunkers. Proposition-based chunking consistently yields the lowest average scores across all models (ranging from 0.3487 to 0.3916), while LumberChunker ranks fourth or fifth in average corpus effectiveness. For instance, with Jina-v3, paragraph chunking outperforms LumberChunker by 11\% (0.4948 vs 0.4463) and proposition-level chunking by 26\% (0.4948 vs 0.3916).
 
-\textbf{Dataset characteristics influence segmentation effectiveness.} Performance patterns vary across different corpus types. For domain-specific datasets like SciFact and TREC-COVID, sentence-based chunking often performs competitively or best (e.g., SciFact with Jina-v2: 0.6548, TREC-COVID with Nomic: 0.7859 for fixed-size). In contrast, for argumentative text (ArguAna), paragraph and fixed-size chunking consistently outperform more sophisticated methods, suggesting that natural discourse boundaries are crucial for certain retrieval tasks.
+\textbf{Dataset characteristics influence chunking effectiveness.} Effectiveness patterns vary across different corpus types. For domain-specific datasets like SciFact and TREC-COVID, sentence-based chunking often performs competitively or best (e.g., SciFact with Jina-v2: 0.6548, TREC-COVID with Nomic: 0.7859 for fixed-size). In contrast, for argumentative text (ArguAna), paragraph and fixed-size chunking consistently outperform more sophisticated strategies, suggesting that natural discourse boundaries are crucial for certain retrieval tasks.
 
-\textbf{Model architecture affects segmentation sensitivity.} The variance in performance across segmentation methods differs substantially between models. Jina-v2 shows the highest sensitivity to segmentation choice with a 23\% performance gap between best and worst methods (0.4303 vs 0.3487), while E5-Large shows more robustness with only a 11\% gap (0.4997 vs 0.3883). This indicates that some embedding models are inherently better at handling suboptimal chunk boundaries.
+\textbf{Model architecture affects chunking sensitivity.} The variance in effectiveness across chunkers differs substantially between models. Jina-v2 shows the highest sensitivity to chunking choice with a 23\% effectiveness gap between best and worst strategies (0.4303 vs 0.3487), while E5-Large shows more robustness with only a 11\% gap (0.4997 vs 0.3883). This indicates that some embedding models are inherently better at handling suboptimal chunk boundaries.
 
-\textbf{Overall, our results reveal that simple segmentation methods are most effective for multi-document retrieval.} Paragraph-based chunking emerges as the most reliable choice, achieving the highest average performance in three of four models and consistently ranking in the top-2 across individual datasets. Fixed-size chunking offers comparable performance (within 2\% of paragraph chunking on average) with computational advantages. Surprisingly, LLM-guided methods significantly underperform despite their sophistication: Proposition-based chunking averages 15-20\% lower performance than paragraph chunking across all models. This answers RQ1 by demonstrating that for standard multi-document retrieval, simpler segmentation methods that respect natural document boundaries (paragraphs) or use consistent sizes provide superior effectiveness and robustness compared to semantic-aware chunking strategies.
+\textbf{Overall, our results reveal that simple chunking strategies are most effective for multi-document retrieval.} Paragraph-based chunking emerges as the most reliable choice, achieving the highest average effectiveness in three of four models and consistently ranking in the top-2 across individual datasets. Fixed-size chunking offers comparable effectiveness (within 2\% of paragraph chunking on average) with computational advantages. Surprisingly, LLM-guided strategies significantly underperform despite their sophistication: proposition-level chunking averages 15-20\% lower effectiveness than paragraph chunking across all models. This answers RQ1 by demonstrating that for standard multi-document retrieval, simpler chunkers that respect natural document boundaries or use consistent sizes provide superior effectiveness and robustness compared to semantic-aware alternatives.
 
 
 \begin{table}[htbp]
 	\centering
-	\caption{Performance comparison across different models, chunking strategies, and datasets using DCG@10 for GutenQA and nDCG@10 for other datasets (RegularEncoder)}
+		\caption{Effectiveness comparison across different models, chunking strategies, and datasets using DCG@10 for GutenQA and nDCG@10 for other datasets (regular encoder)}
 	\label{tab:results_regular_encoder}
 	\begin{tabular}{llcccccccc}
 		\toprule
@@ -64,12 +64,16 @@ To establish baseline performance characteristics of different segmentation meth
 
 
 
-\section{RQ2: Robustness of In-document retrieval}
+\section{RQ2: Do Chunking Strategies Generalize Across Retrieval Paradigms?}
+
+We contrast effectiveness on the single-document GutenQA benchmark with the multi-document BEIR tasks to evaluate cross-paradigm robustness. Table~\ref{tab:results_regular_encoder} shows that the chunkers excelling on GutenQA are precisely those that falter on BEIR. Proposition-level chunking delivers the highest GutenQA scores for three of the four encoders (e.g., 0.5556 DCG@10 with Jina-v2 and 0.5530 with E5-Large), yet it yields the lowest average corpus effectiveness in every case, trailing paragraph chunking by 18\% relative for Jina-v2 (0.3487 vs.\ 0.4303) and by 22\% for E5-Large (0.3883 vs.\ 0.4997). LLM-guided LumberChunker exhibits a similar pattern: it leads the GutenQA column for Jina-v3 (0.5693) but drops to fourth place on BEIR (0.4463 average). In contrast, simple heuristics, namely paragraph and fixed-size chunking, rarely win on GutenQA but consistently occupy the top two ranks on the multi-document tasks.
+
+These trends persist when we switch to contextualized encoders in Table~\ref{tab:results_late_encoder}. Late chunking boosts proposition-based scores on GutenQA (0.5280 with Jina-v2, 0.5117 with E5-Large), yet its BEIR averages remain far below those of the heuristic baselines (0.4049 and 0.4030, respectively). Sentence blocks and fixed-size windows, while modest on document retrieval, retain their edge on BEIR after contextualization (e.g., 0.4400 for Jina-v2 sentence blocks, 0.4770 for Nomic sentence blocks). The lack of a single method that performs strongly in both paradigms demonstrates that chunkers tuned for precise passage localization do not generalize to open-domain retrieval, whereas coarse structural heuristics are more transferable even if they sacrifice some in-document fidelity.
 
 
 \begin{table}[htbp]
 	\centering
-	\caption{Performance comparison across different models, chunking strategies, and datasets using DCG@10 for GutenQA and nDCG@10 for other datasets (LateEncoder)}
+	\caption{Effectiveness comparison across different models, chunking strategies, and datasets using DCG@10 for GutenQA and nDCG@10 for other datasets (late encoder)}
 	\label{tab:results_late_encoder}
 	\begin{tabular}{llcccccccc}
 		\toprule
@@ -115,13 +119,19 @@ To establish baseline performance characteristics of different segmentation meth
 
 
 
-\section{RQ3: Effectiveness of Contextualised Chunking}
+\section{RQ3: Effectiveness of Contextualized Chunking}
+
+We next examine whether contextualized chunking (late encoder) provides consistent gains over pre-embedding baselines. Table~\ref{tab:encoder_comparison} reports relative changes when switching from the regular encoder to the late encoder. Improvements are highly localized: sentence blocks with Jina-v2 gain 6.5\% on nfcorpus and 9.6\% on FiQA, while losing 5.4\% DCG@10 on GutenQA. Fixed-size windows also benefit slightly on nfcorpus (+15.3\%) yet deteriorate on the document task (-2.3\%). Paragraph chunking, which is the strongest BEIR baseline, rarely improves; its average change across corpora is within +/-0.5\% for three encoders, and it suffers double-digit drops on GutenQA (e.g., -10.7\% for Jina-v2, -39.4\% for Nomic).
+
+LLM-driven methods experience the largest swings. Proposition-level chunking enjoys dramatic relative gains on argumentative corpora when paired with contextualized embeddings (e.g., +42.2\% nDCG on ArguAna with Jina-v2 and +59.8\% with E5-Large), but those gains coincide with severe regressions on cleaner domains (-25.9\% on TREC-COVID for E5-Large, -19.3\% for Nomic). LumberChunker similarly oscillates: contextualization boosts ArguAna by up to +27.8\% for Jina-v2 yet erodes FiQA by as much as -29.1\%.
+
+Overall, the late encoder delivers at most marginal average gains across BEIR (no more than +2.4 percentage points) while incurring substantial cost on the single-document task (up to -62.5\% for paragraph chunking with Nomic). These results indicate that contextualized chunking is not a free upgrade: it must be targeted at specific chunker-model-dataset combinations where the additional context outweighs the noise introduced by pooling across long sequences.
 
 \begin{table}[htbp]
 	\centering
 	\definecolor{lightgreen}{RGB}{220,255,220}
 	\definecolor{lightred}{RGB}{255,220,220}
-	\caption{LateEncoder performance relative to RegularEncoder (baseline). Values show percentage change (light green=improvement, light red=degradation)}
+	\caption{Late-encoder effectiveness relative to the regular encoder (baseline). Values show percentage change (light green=improvement, light red=degradation)}
 	\label{tab:encoder_comparison}
 	\begin{tabular}{llcccccccc}
 		\toprule
@@ -168,5 +178,3 @@ To establish baseline performance characteristics of different segmentation meth
 
 
 \section{RQ4: Other Factors}
-
-
