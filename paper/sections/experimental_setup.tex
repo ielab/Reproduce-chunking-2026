@@ -2,20 +2,29 @@
 
 We evaluate each chunking strategy using the unified framework described in Section~\ref{sec:benchmarking_document_segmentation_strategies} and illustrated in Figure~\ref{fig:chunking-embedding-pipeline}. This section details the specific implementations, datasets, and evaluation procedures used in our experiments.
 
-\subsection{Implementation Details}
-
-\subsubsection{Segmentation Methods}
+\subsection{Segmentation Methods}
 We used a consistent implementation for each segmentation strategy across all datasets to ensure comparability.
+
+\subsubsection{Structure-based Heuristics}
+
 \begin{itemize}
-	\item \textbf{Fixed-Size Windows:} Documents are divided into 512-token segments with no overlap.
 	\item \textbf{Paragraphs:} Chunks are defined by newline characters. Consecutive blank lines are collapsed into a single boundary.
+	\item \textbf{Fixed-Size:} Documents are divided into 512-token segments with no overlap.
 	\item \textbf{Sentences:} We group five consecutive sentences, as identified by the spaCy `en\_core\_web\_sm` model, into each chunk.
-	\item \textbf{Semantic Sentence Splitting:} Following the open-source implementation from~\cite{semantic-splitting-source}, we use `jina-embeddings-v2-small-en` to compute the cosine similarity between adjacent sentences and insert a boundary when the similarity falls below 0.5.
-	\item \textbf{LLM-Guided (LumberChunker):} We prompt `Gemini-1.5-Flash'  for the GutenQA dataset and `GPT-4.1-Nano` for the BEIR datasets, following the settings in~\cite{duarte_lumberchunker_2024}.
-	\item \textbf{Proposition-Based:} For the GutenQA dataset, we first apply LumberChunker and then use a second `GPT-4.1-Nano' prompt to break the resulting chunks into propositions. For BEIR, we generate propositions directly from the text. For all LLM-based methods, we set the temperature to 0.0 for deterministic output.
 \end{itemize}
 
-\subsubsection{Embedding Models and Paradigms}
+\subsubsection{Semantically Informed and LLM-guided Strategies}
+
+\begin{itemize}
+	\item \textbf{Semantic Sentence:} Following the open-source implementation from~\cite{semantic-splitting-source}, we use `jina-embeddings-v2-small-en` to compute the cosine similarity between adjacent sentences and insert a boundary when the similarity falls below 0.5.
+\item \textbf{LLM-Guided (LumberChunker):} We prompt `Gemini-1.5-Flash'  for the GutenQA dataset and `GPT-4.1-Nano` for the BEIR datasets, following the settings in~\cite{duarte_lumberchunker_2024}.
+\item \textbf{Proposition-Based:} For the GutenQA dataset, we first apply LumberChunker and then use a second `GPT-4.1-Nano' prompt to break the resulting chunks into propositions. For BEIR, we generate propositions directly from the text. For all LLM-based methods, we set the temperature to 0.0 for deterministic output.
+\end{itemize}
+
+
+\subsection{Embedding model and Paradigms}
+
+
 We test four different embedding models: `jina-embeddings-v2-small-en`, `jina-embeddings-v3`, `nomic-embed-text-v1`, and `multilingual-e5-base`. Each model is used in both the pre-embedding and contextualized paradigms.
 \begin{itemize}
 	\item In the \textbf{pre-embedding paradigm}, each chunk is encoded independently.
@@ -23,8 +32,7 @@ We test four different embedding models: `jina-embeddings-v2-small-en`, `jina-em
 \end{itemize}
 For very long documents in the contextualized paradigm, we use a sliding window approach where the document is split into overlapping sections that fit the model's context window~\cite{gunther_late_2025}.
 
-\subsubsection{Retrieval and Indexing}
-The generated chunk vectors are stored in a FAISS flat index using cosine similarity. For each query, we retrieve the top 100 most similar chunks. For tasks that require document-level scores, the final score for a document is the maximum score among all its retrieved chunks (Max\_C)
+
 
 \subsection{Datasets and Evaluation}
 

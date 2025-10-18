@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.8.23)  18 OCT 2025 11:27
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.8.23)  18 OCT 2025 15:01
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -695,65 +695,58 @@ es: structure-based heuris-
 [3 <./pics/chunking-embedding-pipeline.png>]
 
 LaTeX Warning: Citation `multi_hop_retrieval' on page 4 undefined on input line
- 24.
+ 25.
 
 
-Overfull \hbox (7.2932pt too wide) in paragraph at lines 30--32
+Overfull \hbox (7.2932pt too wide) in paragraph at lines 31--33
  []\OT1/cmr/bx/n/10 Semantically-Informed and LLM-Guided Strate-gies[] \OT1/cmr
 /m/n/10 These ad-vanced meth-
  []
 
 
 LaTeX Warning: Citation `greg_5_levels_of_text_splitting_nodate' on page 4 unde
-fined on input line 32.
+fined on input line 33.
 
 
-LaTeX Warning: Citation `chen_dense_2024' on page 4 undefined on input line 33.
+LaTeX Warning: Citation `chen_dense_2024' on page 4 undefined on input line 34.
 
-
-
-Overfull \hbox (0.96208pt too wide) in paragraph at lines 33--34
-[]\OT1/cmr/bx/n/10 Proposition-Based Chunk-ing: \OT1/cmr/m/n/10 This method use
-s a Large Lan-guage Model
- []
 
 
 LaTeX Warning: Citation `duarte_lumberchunker_2024' on page 4 undefined on inpu
-t line 34.
+t line 35.
 
 
 
 [4]
 
 LaTeX Warning: Citation `gunther_late_2025' on page 5 undefined on input line 4
-2.
+5.
 
 
-LaTeX Warning: Citation `thakur_beir_2021' on page 5 undefined on input line 48
+LaTeX Warning: Citation `thakur_beir_2021' on page 5 undefined on input line 51
 .
 
 ) (./sections/experimental_setup.tex
 
-LaTeX Warning: Citation `semantic-splitting-source' on page 5 undefined on inpu
-t line 13.
-
-
-
 [5]
 
-LaTeX Warning: Citation `duarte_lumberchunker_2024' on page 6 undefined on inpu
-t line 14.
-
-
-LaTeX Warning: Citation `gunther_late_2025' on page 6 undefined on input line 2
-4.
+LaTeX Warning: Citation `semantic-splitting-source' on page 6 undefined on inpu
+t line 19.
 
 
 LaTeX Warning: Citation `duarte_lumberchunker_2024' on page 6 undefined on inpu
-t line 34.
+t line 20.
 
 
-LaTeX Warning: Citation `thakur_beir_2021' on page 6 undefined on input line 35
+LaTeX Warning: Citation `gunther_late_2025' on page 6 undefined on input line 3
+3.
+
+
+LaTeX Warning: Citation `duarte_lumberchunker_2024' on page 6 undefined on inpu
+t line 42.
+
+
+LaTeX Warning: Citation `thakur_beir_2021' on page 6 undefined on input line 43
 .
 
 
@@ -781,11 +774,6 @@ Overfull \hbox (4.03163pt too wide) in paragraph at lines 78--117
  []
 
 
-Underfull \vbox (badness 7468) has occurred while \output is active []
-
-
-
-[10]
 Overfull \hbox (44.80309pt too wide) in paragraph at lines 136--175
  [][] 
  []
@@ -796,6 +784,8 @@ Overfull \hbox (44.80309pt too wide) in paragraph at lines 136--175
 LaTeX Warning: Empty `thebibliography' environment on input line 6.
 
 )
+
+[10]
 
 [11]
 
@@ -809,12 +799,12 @@ Package rerunfilecheck Info: File `ecir2026-chunking.out' has not changed.
  ) 
 Here is how much of TeX's memory you used:
  12556 strings out of 473190
- 199733 string characters out of 5715800
- 657004 words of memory out of 5000000
+ 199736 string characters out of 5715800
+ 669003 words of memory out of 5000000
  35581 multiletter control sequences out of 15000+600000
  567018 words of font info for 67 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 75i,13n,79p,1086b,550s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 75i,13n,79p,1086b,552s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb
 ></usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb>
 </usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx9.pfb></
@@ -831,7 +821,7 @@ ive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></usr/local/texli
 ve/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmti9.pfb></usr/local/texlive
 /2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt9.pfb></usr/local/texlive/2
 025/texmf-dist/fonts/type1/public/cm-super/sfrm0900.pfb>
-Output written on ecir2026-chunking.pdf (12 pages, 459669 bytes).
+Output written on ecir2026-chunking.pdf (12 pages, 459590 bytes).
 PDF statistics:
  192 PDF objects out of 1000 (max. 8388607)
  142 compressed objects within 2 object streams

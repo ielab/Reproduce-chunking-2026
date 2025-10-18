@@ -21,18 +21,21 @@ We classify segmentation strategies into two main families: structure-based heur
 \subsubsection{Structure-Based Heuristics}
 These methods use observable textual features to create chunks. They are widely adopted in practice due to their speed, simplicity, and deterministic output. We evaluate three common heuristic strategies:
 \begin{itemize}
-	\item \textbf{Fixed-Size Windows:} This method divides text into segments of a constant token length (e.g., 256 tokens), with an optional overlap between consecutive chunks. While computationally efficient, it can unnaturally split coherent thoughts or sentences, potentially harming the quality of the resulting embeddings~\cite{multi_hop_retrieval}.
-	\item \textbf{Paragraphs:} This strategy uses the author's original paragraph breaks as chunk boundaries. It respects the document's intended structure at no extra processing cost and is often effective for well-organized texts like news articles.
-	\item \textbf{Sentences:} This approach groups a fixed number of consecutive sentences to form each chunk. It creates fine-grained segments suitable for tasks like question answering, where answers are often concise. However, it may fail when relevant context is spread across multiple sentences.
+	\item \textbf{Paragraphs:} This strategy uses paragraph breaks as chunk boundaries. It respects the document's intended structure at no extra processing cost and is often effective for well-organized texts like news articles.
+	\item \textbf{Fixed-Size Windows:} This method divides text into segments of a constant token length (e.g., 512 tokens), with an optional overlap between consecutive chunks. While computationally efficient, it can unnaturally split coherent thoughts or sentences, potentially harming the quality of the resulting embeddings~\cite{multi_hop_retrieval}.
+	\item \textbf{Sentences:} This approach forms each chunk using only one sentence. It creates fine-grained segments suitable for tasks like question answering, where answers are often concise. However, it may fail when relevant context is spread across multiple sentences.
+
 \end{itemize}
 
 \subsubsection{Semantically-Informed and LLM-Guided Strategies}
 These advanced methods use models to analyze the text's meaning and identify more natural breakpoints. The aim is to produce chunks that are internally coherent, providing a better foundation for retrieval.
 \begin{itemize}
 	\item \textbf{Semantic Sentence Splitting:} This technique calculates the semantic similarity between adjacent sentences. When the similarity drops below a certain threshold, indicating a topic shift, a boundary is inserted~\cite{greg_5_levels_of_text_splitting_nodate}. This adapts to the flow of the document's content.
-	\item \textbf{Proposition-Based Chunking:} This method uses a Large Language Model (LLM) to break down sentences into atomic facts or "propositions"~\cite{chen_dense_2024}. Each proposition becomes a chunk, creating highly specific units ideal for factual lookups, though it can significantly increase the total number of chunks.
-	\item \textbf{LLM-Guided Chunking:} This approach directly instructs an LLM to segment the document into coherent sections based on its understanding of the text's narrative and rhetorical structure~\cite{duarte_lumberchunker_2024}. While powerful, this method's reliance on LLM inference makes it slower and more expensive.
+	\item \textbf{Proposition-Based Chunking:} This method uses an LLM to break down paragraphs into atomic facts or "propositions"~\cite{chen_dense_2024}. Each proposition becomes a chunk, which creates highly specific units ideal for factual lookups. However, this can significantly increase the total number of chunks and is computationally expensive due to its reliance on LLM inference.
+	\item \textbf{LumberChunker:} This approach directly instructs an LLM to segment the document by inserting breakpoints between paragraphs where it detects a topic shift~\cite{duarte_lumberchunker_2024}. While powerful, this method is also slower and more expensive due to its use of LLM inference.
 \end{itemize}
+It is important to note that semantically-informed and LLM-guided strategies often build upon structure-based heuristics. For example, semantic sentence splitting relies on an initial sentence segmentation, while both proposition-based chunking and LumberChunker typically operate on paragraph-level text.
+
 
 \subsection{Embedding Paradigms: Pre-Embedding vs. Contextualized Chunking}
 
