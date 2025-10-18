@@ -31,14 +31,18 @@ While all of the embedding models are able to handle the \textit{pre-embedding} 
 \subsection{Datasets and Evaluation}
 Our evaluation is designed to test the generalizability of chunking strategies across different retrieval tasks and domains.
 
-\subsubsection{Datasets}
-\begin{itemize}
-	\item \textbf{In-Document Retrieval} is evaluated using the \textbf{GutenQA} dataset~\cite{duarte_lumberchunker_2024}, which contains over 50 classic literature books. For each book, a set of questions asks for specific information contained within that book. This task tests for precise information localization within a single, long document.
-	\item \textbf{In-Corpus Retrieval} is evaluated on a selection of datasets from the \textbf{BEIR} benchmark~\cite{thakur_beir_2021}: FiQA, ArguAna, SciDocs, TREC-COVID, SciFact, and NFCorpus. We chose these specific datasets based on two criteria. First, they cover a diverse range of retrieval tasks and domains, from finance and scientific articles to biomedical texts. Second, these datasets have a relatively small number of documents, which was a practical consideration to manage the computational cost associated with the LLM-guided chunking methods.
-\end{itemize}
+\textbf{In-Document Retrieval} is evaluated using the \textbf{GutenQA} dataset~\cite{duarte_lumberchunker_2024}, which contains over 50 classic literature books. For each book, a set of questions asks for specific information contained within that book. This task tests for precise information localization within a single, long document.
+
+\textbf{In-Corpus Retrieval} is evaluated on a selection of datasets from the \textbf{BEIR} benchmark~\cite{thakur_beir_2021}: FiQA, ArguAna, SciDocs, TREC-COVID, SciFact, and NFCorpus. We chose these specific datasets based on two criteria. First, they cover a diverse range of retrieval tasks and domains, from finance and scientific articles to biomedical texts. Second, these datasets have a relatively small number of documents, which was a practical consideration to manage the computational cost associated with the LLM-guided chunking methods.
+
 All text is lowercased and tokenized using the specific tokenizer provided with each embedding model.
 
-\subsubsection{Evaluation Metrics}
+
+For ~\textbf{In Document retrieval}, ground-truth is per paragraph, but each chunk may include only a portion of one paragraph, or multiple paragraphs combined together; to distinguish if a retrieved chunk is relevant or not, we match the top n retrieved chunks with the paragraph \todo{is this what we do?}
+
+On the other hand, for \textbf{In-Corpus Retrieval}, ground truth is typically per-document, in this case, we just use the score of the top-ranked chunk of the document to represent the relevance of the document. As specified by previous paper by~\cite{zhuyun}, this is the most effective way ... 
+
+For evaluation metrics, we use 
 Following standard practices for these datasets, we report nDCG@10 (normalized Discounted Cumulative Gain at rank 10) for all BEIR tasks and DCG@10 for GutenQA. The formula for DCG is:
 $$ \mathrm{DCG@10} = \sum_{i=1}^{10} \frac{2^{\mathrm{rel}_i} - 1}{\log_2(i+1)} $$
 where $\mathrm{rel}_i$ is the relevance score of the result at rank $i$. The nDCG@10 metric normalizes this score by the best possible DCG@10 score, producing a value between 0 and 1. All metrics are calculated using the official BEIR evaluation toolkit.
