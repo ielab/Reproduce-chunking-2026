@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.8.23)  18 OCT 2025 15:01
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.8.23)  18 OCT 2025 15:25
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -731,22 +731,24 @@ LaTeX Warning: Citation `thakur_beir_2021' on page 5 undefined on input line 51
 [5]
 
 LaTeX Warning: Citation `semantic-splitting-source' on page 6 undefined on inpu
-t line 19.
+t line 10.
 
 
 LaTeX Warning: Citation `duarte_lumberchunker_2024' on page 6 undefined on inpu
-t line 20.
+t line 10.
 
 
-LaTeX Warning: Citation `gunther_late_2025' on page 6 undefined on input line 3
-3.
+Overfull \hbox (5.29372pt too wide) in paragraph at lines 27--28
+[]\OT1/cmr/m/n/10 While the first three mod-els were eval-u-ated in the ini-tia
+l late-chunking method,
+ []
 
 
 LaTeX Warning: Citation `duarte_lumberchunker_2024' on page 6 undefined on inpu
-t line 42.
+t line 36.
 
 
-LaTeX Warning: Citation `thakur_beir_2021' on page 6 undefined on input line 43
+LaTeX Warning: Citation `thakur_beir_2021' on page 6 undefined on input line 37
 .
 
 
@@ -799,12 +801,12 @@ Package rerunfilecheck Info: File `ecir2026-chunking.out' has not changed.
  ) 
 Here is how much of TeX's memory you used:
  12556 strings out of 473190
- 199736 string characters out of 5715800
- 669003 words of memory out of 5000000
- 35581 multiletter control sequences out of 15000+600000
- 567018 words of font info for 67 fonts, out of 8000000 for 9000
+ 199735 string characters out of 5715800
+ 669001 words of memory out of 5000000
+ 35582 multiletter control sequences out of 15000+600000
+ 567186 words of font info for 68 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 75i,13n,79p,1086b,552s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 75i,13n,79p,1086b,556s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb
 ></usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb>
 </usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx9.pfb></
@@ -819,12 +821,13 @@ texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr9.pfb></usr/local/tex
 live/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/local/texl
 ive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></usr/local/texli
 ve/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmti9.pfb></usr/local/texlive
-/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt9.pfb></usr/local/texlive/2
-025/texmf-dist/fonts/type1/public/cm-super/sfrm0900.pfb>
-Output written on ecir2026-chunking.pdf (12 pages, 459590 bytes).
+/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt10.pfb></usr/local/texlive/
+2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt9.pfb></usr/local/texlive/20
+25/texmf-dist/fonts/type1/public/cm-super/sfrm0900.pfb>
+Output written on ecir2026-chunking.pdf (12 pages, 472519 bytes).
 PDF statistics:
- 192 PDF objects out of 1000 (max. 8388607)
+ 194 PDF objects out of 1000 (max. 8388607)
  142 compressed objects within 2 object streams
- 41 named destinations out of 1000 (max. 500000)
+ 39 named destinations out of 1000 (max. 500000)
  14 words of extra memory for PDF output out of 10000 (max. 10000000)
 
