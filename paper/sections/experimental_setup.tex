@@ -1,50 +1,42 @@
 \section{Experimental Setup}
 
-We evaluate every chunking strategy within the unified pipeline introduced in Figure~\ref{fig:chunking-embedding-pipeline}. This section first details the configuration of that pipeline and then summarizes the datasets and evaluation methodology used to assess each variant.
+We evaluate each chunking strategy using the unified framework described in Section~\ref{sec:benchmarking_document_segmentation_strategies} and illustrated in Figure~\ref{fig:chunking-embedding-pipeline}. This section details the specific implementations, datasets, and evaluation procedures used in our experiments.
 
-\subsection{Pipeline Configuration}
+\subsection{Implementation Details}
 
-\subsubsection{Chunking Modules}
-Each chunking strategy from Section~\ref{sec:benchmarking_document_segmentation_strategies} is instantiated with a single implementation that applies to all datasets.
+\subsubsection{Segmentation Methods}
+We used a consistent implementation for each segmentation strategy across all datasets to ensure comparability.
 \begin{itemize}
-    \item \textbf{Fixed-size windows:} Documents are divided into 512-token spans with no overlap. \todo{Confirm whether overlap or stride tuning is explored.}
-    \item \textbf{Paragraph boundaries:} Segments follow newline-delimited paragraphs after lightweight normalization that collapses consecutive newlines.
-    \item \textbf{Sentence blocks:} We group five consecutive sentences produced by spaCy's English sentence segmenter. \todo{Verify tokenizer language model version.}
-    \item \textbf{Semantic sentence chunking:} We reuse the open-source implementation described in~\ref{todo:semantic-splitting}, using jina-embeddings-v2-small-en to score adjacency and place a boundary when cosine similarity falls below the default threshold.
-    \item \textbf{LumberChunker:} We prompt Gemini-1.5-Flash for GutenQA and GPT-4.1-Nano for BEIR documents, mirroring settings published in~\cite{duarte_lumberchunker_2024}. Chunk boundaries are extracted from JSON responses and aligned back to token spans.
-    \item \textbf{Proposition-level chunking:} For GutenQA we cascade LumberChunker with a second GPT-4.1-Nano prompt that enumerates propositions inside each coarse segment; for BEIR we invoke the proposition prompt directly. \todo{Document prompt templates and temperature.}
+	\item \textbf{Fixed-Size Windows:} Documents are divided into 512-token segments with no overlap.
+	\item \textbf{Paragraphs:} Chunks are defined by newline characters. Consecutive blank lines are collapsed into a single boundary.
+	\item \textbf{Sentences:} We group five consecutive sentences, as identified by the spaCy `en\_core\_web\_sm` model, into each chunk.
+	\item \textbf{Semantic Sentence Splitting:} Following the open-source implementation from~\cite{semantic-splitting-source}, we use `jina-embeddings-v2-small-en` to compute the cosine similarity between adjacent sentences and insert a boundary when the similarity falls below 0.5.
+	\item \textbf{LLM-Guided (LumberChunker):} We prompt `Gemini-1.5-Flash'  for the GutenQA dataset and `GPT-4.1-Nano` for the BEIR datasets, following the settings in~\cite{duarte_lumberchunker_2024}.
+	\item \textbf{Proposition-Based:} For the GutenQA dataset, we first apply LumberChunker and then use a second `GPT-4.1-Nano' prompt to break the resulting chunks into propositions. For BEIR, we generate propositions directly from the text. For all LLM-based methods, we set the temperature to 0.0 for deterministic output.
 \end{itemize}
 
-Every method emits a sequence of span offsets that is consumed by the encoder modules described next.
-
-\subsubsection{Encoder Settings}
-We evaluate four encoder families (jina-embeddings-v2-small-en, jina-embeddings-v3, nomic-embed-text-v1, and multilingual-e5-base) in two modes.
+\subsubsection{Embedding Models and Paradigms}
+We test four different embedding models: `jina-embeddings-v2-small-en`, `jina-embeddings-v3`, `nomic-embed-text-v1`, and `multilingual-e5-base`. Each model is used in both the pre-embedding and contextualized paradigms.
 \begin{itemize}
-    \item \textbf{Regular encoder (pre-embedding):} Each chunk is encoded independently, and the resulting vectors are normalized and indexed.
-    \item \textbf{Late encoder (contextualized):} The full document, or overlapping slices when necessary, is passed through the encoder to obtain token-level embeddings. Span offsets from the chunker are applied afterward, and chunk vectors are produced via mean pooling. \todo{Assess whether attention pooling improves stability.}
+	\item In the \textbf{pre-embedding paradigm}, each chunk is encoded independently.
+	\item In the \textbf{contextualized paradigm}, the full document is encoded to obtain token-level embeddings. The final vector for each chunk is then calculated by taking the mean of the embeddings of the tokens it contains (mean pooling).
 \end{itemize}
+For very long documents in the contextualized paradigm, we use a sliding window approach where the document is split into overlapping sections that fit the model's context window~\cite{gunther_late_2025}.
 
-When encoders require instruction prefixes (for example, the E5 instruction token), we prepend the prefix only to the first span and append suffix tokens to the final span so that intermediate chunks correspond to contiguous document text. All encoders operate with mixed precision (FP16) on GPU unless otherwise noted. \todo{Record hardware specifications.}
-
-\subsubsection{Retrieval Pipeline}
-Chunk vectors are stored in a FAISS flat index with cosine similarity. Retrieval consists of top-$k$ dense retrieval followed by optional re-ranking when the dataset protocol requires it. For BEIR tasks we retrieve $k=100$ chunks per query and evaluate ranking directly on dense scores; for GutenQA we retrieve $k=64$ chunks and compute metrics at the chunk level. \todo{Add ablation on larger $k$ values.}
-
-To map chunk scores back to documents we aggregate by maximum score unless the benchmark specifies passage-level evaluation. Negative sampling and index construction are performed per encoder to avoid cross-model interference.
-
-\subsubsection{Handling Long Documents}
-\label{sec:longtext}
-Encoder context windows impose practical limits on segment length. In the pre-embedding setting we ensure every chunk fits within the model limit by truncating any residual tokens conservatively. For contextualized chunking we adopt the sliding-window approach from~\cite{gunther_late_2025}: long documents are split into overlapping spans that fit the model window, each span is encoded independently, and chunk boundaries are applied within the span before pooling. Prefix tokens appear only in the first span and suffix tokens only in the last to maintain alignment.
+\subsubsection{Retrieval and Indexing}
+The generated chunk vectors are stored in a FAISS flat index using cosine similarity. For each query, we retrieve the top 100 most similar chunks. For tasks that require document-level scores, the final score for a document is the maximum score among all its retrieved chunks (Max\_C)
 
 \subsection{Datasets and Evaluation}
 
 \subsubsection{Datasets}
-We consider two complementary retrieval paradigms to stress-test generalization.
+We evaluate the chunking strategies on two different types of retrieval tasks to assess their generalizability.
 \begin{itemize}
-    \item \textbf{In-document retrieval} uses GutenQA~\cite{duarte_lumberchunker_2024}, which pairs long-form literary works with question-answer annotations. Each query is restricted to one source document, emphasizing fine-grained localization. \todo{Insert summary statistics for GutenQA (number of books, average length).}
-    \item \textbf{In-corpus retrieval} draws on a diverse subset of BEIR corpora~\cite{thakur_beir_2021}: FiQA, ArguAna, SciDocs, TREC-COVID, GutenQA, SciFact, and NFCorpus. These collections cover financial forums, argumentative essays, scientific abstracts, and biomedical literature. \todo{Provide per-dataset document and query counts.}
+	\item \textbf{In-Document Retrieval} is evaluated using the \textbf{GutenQA} dataset~\cite{duarte_lumberchunker_2024}, which contains over 50 classic literature books. For each book, there are specific query/questions asking about relevant information in this book. This task tests for precise information localization within a single, long document.
+	\item \textbf{In-Corpus Retrieval} is evaluated on a selection of datasets from the \textbf{BEIR} benchmark~\cite{thakur_beir_2021}. We chose these specific datasets: FiQA, ArguAna, SciDocs, TREC-COVID, SciFact, and NFCorpus, based on two criteria. First, they cover a diverse range of retrieval tasks and domains, from finance and scientific articles to biomedical texts. Second, these datasets have a relatively small number of documents, which was a practical consideration to manage the computational cost associated with the LLM-guided chunking methods.
 \end{itemize}
-
-All corpora are lowercased and tokenized using the default pretrained tokenizer associated with each embedding model. We preserve dataset-specific query and relevance annotations without modification.
+All text is lowercased and tokenized using the specific tokenizer provided with each embedding model.
 
 \subsubsection{Evaluation Metrics}
-We report Discounted Cumulative Gain at rank 10 (DCG@10) for GutenQA, consistent with long-context retrieval benchmarks~\cite{duarte_lumberchunker_2024}, and normalized DCG at rank 10 (nDCG@10) for BEIR datasets~\cite{latechunking2024}. DCG@10 measures the quality of the top 10 retrieved chunks by summing graded relevance values with logarithmic discounting: $\mathrm{DCG@10}=\sum_{i=1}^{10}\frac{2^{\mathrm{rel}_i}-1}{\log_2(i+1)}$, where $\mathrm{rel}_i$ is the relevance label of the chunk at rank $i$. nDCG@10 divides DCG@10 by the score of an ideal ranking, yielding a value between 0 and 1 that facilitates comparison across queries. Metrics are calculated using the official BEIR evaluation toolkit with identical relevance thresholds across models. Confidence intervals are estimated via bootstrap resampling over queries. \todo{State number of bootstrap samples.}
+Following standard practices for these datasets, we report nDCG@10 (normalized Discounted Cumulative Gain at rank 10) for all BEIR tasks and DCG@10 for GutenQA. The formula for DCG is:
+$$ \mathrm{DCG@10} = \sum_{i=1}^{10} \frac{2^{\mathrm{rel}_i} - 1}{\log_2(i+1)} $$
+where $\mathrm{rel}_i$ is the relevance score of the result at rank $i$. The nDCG@10 metric normalizes this score by the best possible DCG@10 score, producing a value between 0 and 1. All metrics are calculated using the official BEIR evaluation toolkit.

@@ -17,52 +17,46 @@
 \citation{propositions2024}
 \citation{lumberchunker2024}
 \citation{latechunking2024}
-\citation{E5-OpenAI}
-\citation{E5-OpenAI}
-\citation{multi_hop_retrieval}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Unified framework for evaluating document chunking strategies across retrieval paradigms. Documents from BEIR and GutenQA datasets are segmented using one of several methods. Depending on the configuration, embeddings are generated either before chunking (\textit  {pre-embedding chunking}) or after full-document encoding (\textit  {contextualized chunking}, e.g., Late Chunking). Resulting chunk embeddings are indexed and evaluated under two retrieval settings: (1) \textit  {in-document retrieval} (needle-in-a-haystack) and (2) \textit  {in-corpus retrieval} (multi-document). The pipeline supports multiple embedding and generative model families, enabling controlled comparison across chunking paradigms and model capacities.}}{3}{figure.caption.2}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{fig:chunking-embedding-pipeline}{{1}{3}{Unified framework for evaluating document chunking strategies across retrieval paradigms. Documents from BEIR and GutenQA datasets are segmented using one of several methods. Depending on the configuration, embeddings are generated either before chunking (\textit {pre-embedding chunking}) or after full-document encoding (\textit {contextualized chunking}, e.g., Late Chunking). Resulting chunk embeddings are indexed and evaluated under two retrieval settings: (1) \textit {in-document retrieval} (needle-in-a-haystack) and (2) \textit {in-corpus retrieval} (multi-document). The pipeline supports multiple embedding and generative model families, enabling controlled comparison across chunking paradigms and model capacities}{figure.caption.2}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {2}Benchmarking Document Chunking Strategies}{3}{section.2}\protected@file@percent }
 \newlabel{sec:benchmarking_document_segmentation_strategies}{{2}{3}{Benchmarking Document Chunking Strategies}{section.2}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Taxonomy of Chunking Strategies}{3}{subsection.2.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{Structure-Preserving Heuristics}{3}{section*.3}\protected@file@percent }
+\citation{multi_hop_retrieval}
 \citation{greg_5_levels_of_text_splitting_nodate}
 \citation{chen_dense_2024}
 \citation{duarte_lumberchunker_2024}
-\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Unified framework for evaluating document chunking strategies across retrieval paradigms. Documents from BEIR and GutenQA datasets are segmented using one of several methods: fixed-size, paragraph-based, sentence-based, semantic sentence-based, propositional, or LLM-guided chunking (e.g., LumberChunker). Depending on the configuration, embeddings are generated either before chunking (\textit  {pre-embedding chunking}) or after full-document encoding (\textit  {contextualized chunking}, e.g., Late Chunking). Resulting chunk embeddings are indexed and evaluated under two retrieval settings: (1) \textit  {in-document retrieval} (needle-in-a-haystack) and (2) \textit  {in-corpus retrieval} (multi-document). The pipeline supports multiple embedding and generative model families (e.g., \textsc  {E5}, \textsc  {Jina}, \textsc  {Nomic}, \textsc  {OpenAI})~\cite  {E5-OpenAI}, enabling controlled comparison across chunking paradigms and model capacities.}}{4}{figure.caption.2}\protected@file@percent }
-\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
-\newlabel{fig:chunking-embedding-pipeline}{{1}{4}{Unified framework for evaluating document chunking strategies across retrieval paradigms. Documents from BEIR and GutenQA datasets are segmented using one of several methods: fixed-size, paragraph-based, sentence-based, semantic sentence-based, propositional, or LLM-guided chunking (e.g., LumberChunker). Depending on the configuration, embeddings are generated either before chunking (\textit {pre-embedding chunking}) or after full-document encoding (\textit {contextualized chunking}, e.g., Late Chunking). Resulting chunk embeddings are indexed and evaluated under two retrieval settings: (1) \textit {in-document retrieval} (needle-in-a-haystack) and (2) \textit {in-corpus retrieval} (multi-document). The pipeline supports multiple embedding and generative model families (e.g., \textsc {E5}, \textsc {Jina}, \textsc {Nomic}, \textsc {OpenAI})~\cite {E5-OpenAI}, enabling controlled comparison across chunking paradigms and model capacities}{figure.caption.2}{}}
-\@writefile{toc}{\contentsline {subsubsection}{Semantically Informed and LLM-Guided Strategies}{4}{section*.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Taxonomy of Segmentation Strategies}{4}{subsection.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Structure-Based Heuristics}{4}{section*.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Semantically-Informed and LLM-Guided Strategies}{4}{section*.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Embedding Paradigms: Pre-Embedding vs. Contextualized Chunking}{4}{subsection.2.2}\protected@file@percent }
 \citation{gunther_late_2025}
-\citation{densex2024, lumberchunker2024, latechunking2024}
-\citation{bajaj_ms_2018, thakur_beir_2021}
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Pre-Embedding vs. Contextualized Chunking}{5}{subsection.2.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.3}Mismatch in Evaluation Protocols}{5}{subsection.2.3}\protected@file@percent }
+\citation{thakur_beir_2021}
+\citation{semantic-splitting-source}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3}Common Evaluation Paradigms}{5}{subsection.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}Experimental Setup}{5}{section.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Implementation Details}{5}{subsection.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Segmentation Methods}{5}{section*.5}\protected@file@percent }
 \citation{duarte_lumberchunker_2024}
-\@writefile{toc}{\contentsline {section}{\numberline {3}Experimental Setup}{6}{section.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Pipeline Configuration}{6}{subsection.3.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{Chunking Modules}{6}{section*.5}\protected@file@percent }
 \citation{gunther_late_2025}
 \citation{duarte_lumberchunker_2024}
 \citation{thakur_beir_2021}
-\@writefile{toc}{\contentsline {subsubsection}{Encoder Settings}{7}{section*.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{Retrieval Pipeline}{7}{section*.7}\protected@file@percent }
-\newlabel{sec:longtext}{{3.1}{7}{Handling Long Documents}{section*.8}{}}
-\@writefile{toc}{\contentsline {subsubsection}{Handling Long Documents}{7}{section*.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Datasets and Evaluation}{7}{subsection.3.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{Datasets}{7}{section*.9}\protected@file@percent }
-\citation{duarte_lumberchunker_2024}
-\citation{latechunking2024}
-\@writefile{toc}{\contentsline {subsubsection}{Evaluation Metrics}{8}{section*.10}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {4}Result}{8}{section.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}RQ1: Impact of Chunking Strategies in Multi-Document Retrieval}{8}{subsection.4.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {5}RQ2: Do Chunking Strategies Generalize Across Retrieval Paradigms?}{9}{section.5}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Effectiveness comparison across different models, chunking strategies, and datasets using DCG@10 for GutenQA and nDCG@10 for other datasets (regular encoder)}}{10}{table.caption.11}\protected@file@percent }
-\newlabel{tab:results_regular_encoder}{{1}{10}{Effectiveness comparison across different models, chunking strategies, and datasets using DCG@10 for GutenQA and nDCG@10 for other datasets (regular encoder)}{table.caption.11}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Effectiveness comparison across different models, chunking strategies, and datasets using DCG@10 for GutenQA and nDCG@10 for other datasets (late encoder)}}{11}{table.caption.12}\protected@file@percent }
-\newlabel{tab:results_late_encoder}{{2}{11}{Effectiveness comparison across different models, chunking strategies, and datasets using DCG@10 for GutenQA and nDCG@10 for other datasets (late encoder)}{table.caption.12}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Embedding Models and Paradigms}{6}{section*.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Retrieval and Indexing}{6}{section*.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Datasets and Evaluation}{6}{subsection.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Datasets}{6}{section*.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Evaluation Metrics}{7}{section*.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4}Result}{7}{section.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}RQ1: Impact of Chunking Strategies in Multi-Document Retrieval}{7}{subsection.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5}RQ2: Do Chunking Strategies Generalize Across Retrieval Paradigms?}{8}{section.5}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Effectiveness comparison across different models, chunking strategies, and datasets using DCG@10 for GutenQA and nDCG@10 for other datasets (regular encoder)}}{9}{table.caption.10}\protected@file@percent }
+\newlabel{tab:results_regular_encoder}{{1}{9}{Effectiveness comparison across different models, chunking strategies, and datasets using DCG@10 for GutenQA and nDCG@10 for other datasets (regular encoder)}{table.caption.10}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Effectiveness comparison across different models, chunking strategies, and datasets using DCG@10 for GutenQA and nDCG@10 for other datasets (late encoder)}}{10}{table.caption.11}\protected@file@percent }
+\newlabel{tab:results_late_encoder}{{2}{10}{Effectiveness comparison across different models, chunking strategies, and datasets using DCG@10 for GutenQA and nDCG@10 for other datasets (late encoder)}{table.caption.11}{}}
 \bibstyle{splncs04}
 \bibdata{bibliography}
-\@writefile{toc}{\contentsline {section}{\numberline {6}RQ3: Effectiveness of Contextualized Chunking}{12}{section.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {7}RQ4: Other Factors}{12}{section.7}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Late-encoder effectiveness relative to the regular encoder (baseline). Values show percentage change (light green=improvement, light red=degradation)}}{13}{table.caption.13}\protected@file@percent }
-\newlabel{tab:encoder_comparison}{{3}{13}{Late-encoder effectiveness relative to the regular encoder (baseline). Values show percentage change (light green=improvement, light red=degradation)}{table.caption.13}{}}
-\gdef \@abspage@last{13}
+\@writefile{toc}{\contentsline {section}{\numberline {6}RQ3: Effectiveness of Contextualized Chunking}{11}{section.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7}RQ4: Other Factors}{11}{section.7}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Late-encoder effectiveness relative to the regular encoder (baseline). Values show percentage change (light green=improvement, light red=degradation)}}{12}{table.caption.12}\protected@file@percent }
+\newlabel{tab:encoder_comparison}{{3}{12}{Late-encoder effectiveness relative to the regular encoder (baseline). Values show percentage change (light green=improvement, light red=degradation)}{table.caption.12}{}}
+\gdef \@abspage@last{12}
