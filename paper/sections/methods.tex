@@ -45,7 +45,7 @@ In contrast, the \textit{contextualized chunking} paradigm (also known as late c
 \subsection{Evaluation Tasks}
 As noted in the introduction, prior work has used inconsistent settings, making direct comparisons difficult. To ensure a fair evaluation, we test each chunking strategy across the two dominant retrieval paradigms:
 \begin{itemize}
-	\item \textbf{In-Document Retrieval:} Also known as "needle-in-a-haystack," this task involves finding a specific piece of information within a single long document. It tests a method's ability to precisely locate content.
+	\item \textbf{In-Document Retrieval:} Also known as``needle-in-a-haystack'', this task involves finding a specific piece of information within a single long document. It tests a method's ability to precisely locate content.
 	\item \textbf{In-Corpus Retrieval:} This is the classic multi-document retrieval task, where the goal is to find the most relevant documents from a large collection, such as the BEIR benchmarks~\cite{thakur_beir_2021}. This tests for scalability and effectiveness in a broader search environment.
 \end{itemize}
 By systematically evaluating each chunking method across both paradigms with a consistent set of embedding models and controls, our study isolates the impact of the chunking strategy itself, providing a clearer understanding of its true effect on retrieval performance.
