@@ -25,5 +25,18 @@ python analysis/base_result_table_creation.py
   - `BASE_PATH`: Path to evaluation results
   - `DATASETS`: List of datasets to include
   - `MODELS`: List of embedding models
-  - `CHUNKERS`: List of chunking strategies
-  - `ENCODER`: Encoder type (RegularEncoder/LateEncoder)
+- `CHUNKERS`: List of chunking strategies
+- `ENCODER`: Encoder type (RegularEncoder/LateEncoder)
+
+### research_question_plots.py
+
+Creates one figure per research question (RQ1–RQ4), summarising evaluation results under `src/chunked_output/`.
+
+**Usage:**
+```bash
+python analysis/research_question_plots.py \
+  --base_path src/chunked_output \
+  --output_dir analysis/figures
+```
+
+Figures are saved as PNG files. The script automatically skips plots when required runs are missing. Install `matplotlib` if it is not already available in your environment.

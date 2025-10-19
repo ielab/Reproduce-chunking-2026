@@ -25,17 +25,28 @@ def cmd_chunk(args: argparse.Namespace):
     args_dict = vars(args)
 
     processor_keys = ['dataset_name', 'data_folder']
-    p_kw = {k:args_dict[k] for k in processor_keys}
+    p_kw = {k: args_dict[k] for k in processor_keys}
 
     chunker_keys = ['embedding_model_name', 'tokenizer_name', 'sample']
-    c_kw ={k:args_dict[k] for k in chunker_keys}
+    c_kw = {k: args_dict[k] for k in chunker_keys if args_dict.get(k) is not None}
+
+    chunker_kwargs_str = args_dict.get('chunker_kwargs') or "{}"
+    try:
+        extra_chunker_kwargs = json.loads(chunker_kwargs_str)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"--chunker_kwargs must be valid JSON: {exc}") from exc
+
+    if not isinstance(extra_chunker_kwargs, dict):
+        raise ValueError("--chunker_kwargs must decode to a JSON object")
+
+    c_kw.update(extra_chunker_kwargs)
 
     # create run id and path
     p_all_params = {"processor_name": args.processor_name, **p_kw}
     c_all_params = {"chunker_name": args.chunker, **c_kw}
 
     # build chunk run id
-    chunk_run_id = build_chunk_run_id(p_all_params, c_all_params)
+    chunk_run_id = args_dict.get('chunk_run_id') or build_chunk_run_id(p_all_params, c_all_params)
     P = Paths(
         dataset_name=p_kw['dataset_name'],
         base_dir=args.output_folder
@@ -52,9 +63,9 @@ def cmd_chunk(args: argparse.Namespace):
     processor: BaseProcessor = PROCESSOR_REG.get(p_all_params['processor_name'])(**p_kw)
     docs: List[Document] = processor.load_corpus()
 
-    c_kw['chunk_sink_path'] = chunks_output_path
-    print(c_kw)
-    chunker: BaseChunker = CHUNKER_REG.get(c_all_params['chunker_name'])(**c_kw)
+    chunker_init_kwargs = {**c_kw, 'chunk_sink_path': chunks_output_path}
+    print(chunker_init_kwargs)
+    chunker: BaseChunker = CHUNKER_REG.get(c_all_params['chunker_name'])(**chunker_init_kwargs)
     chunker.chunk(raw_docs=docs)
 
     write_chunk_manifest(
@@ -429,6 +440,7 @@ def build_parser() -> argparse.ArgumentParser:
     pc.add_argument("--embedding_model_name")
     pc.add_argument("--tokenizer_name")
     pc.add_argument("--chunker_kwargs", default="{}")
+    pc.add_argument("--chunk_run_id", help="Optional override for chunk run directory name")
     pc.set_defaults(func=cmd_chunk)
 
 
@@ -481,5 +493,3 @@ if __name__ == '__main__':
 
     print(sys.argv[1:])
     main(sys.argv[1:])
-
-

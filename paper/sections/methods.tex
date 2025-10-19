@@ -15,27 +15,25 @@ Document chunking is the critical step that transforms raw text into the retriev
 \end{figure}
 
 \subsection{Taxonomy of Segmentation Strategies}
-
 We classify segmentation strategies into two main families: structure-based heuristics that rely on the document's explicit layout, and semantically-informed methods that use language understanding to find logical divisions.
 
 \subsubsection{Structure-Based Heuristics}
 These methods use observable textual features to create chunks. They are widely adopted in practice due to their speed, simplicity, and deterministic output. We evaluate three common heuristic strategies:
 \begin{itemize}
-	\item \textbf{Paragraphs:} This strategy uses paragraph breaks as chunk boundaries. It respects the document's intended structure at no extra processing cost and is often effective for well-organized texts like news articles.
-	\item \textbf{Fixed-Size Windows:} This method divides text into segments of a constant token length (e.g., 512 tokens), with an optional overlap between consecutive chunks. While computationally efficient, it can unnaturally split coherent thoughts or sentences, potentially harming the quality of the resulting embeddings~\cite{multi_hop_retrieval}.
-	\item \textbf{Sentences:} This approach forms each chunk using only one sentence. It creates fine-grained segments suitable for tasks like question answering, where answers are often concise. However, it may fail when relevant context is spread across multiple sentences.
-
+	\item \textbf{Paragraphs:} This strategy splits documents at newline characters and removes empty segments. It respects the document's intended structure at no extra processing cost and is often effective for well-organized texts like news articles.
+	\item \textbf{Fixed-Size Windows:} This method divides text into segments of a constant token length (e.g., 512 tokens), with no overlap between consecutive chunks. While computationally efficient, it can unnaturally split coherent thoughts or sentences, potentially harming the quality of the resulting embeddings~\cite{multi_hop_retrieval}.
+	\item \textbf{Sentences:} This approach uses a regex-based splitter to identify sentence boundaries and groups multiple sentences per chunk. This creates moderately-sized segments that balance granularity with context preservation, suitable for tasks where answers may span multiple sentences.
 \end{itemize}
 
 \subsubsection{Semantically-Informed and LLM-Guided Strategies}
 These advanced methods use models to analyze the text's meaning and identify more natural breakpoints. The aim is to produce chunks that are internally coherent, providing a better foundation for retrieval.
 \begin{itemize}
-	\item \textbf{Semantic Sentence Splitting:} This technique calculates the semantic similarity between adjacent sentences. When the similarity drops below a certain threshold, indicating a topic shift, a boundary is inserted~\cite{greg_5_levels_of_text_splitting_nodate}. This adapts to the flow of the document's content.
-	\item \textbf{Proposition-Based Chunking:} This method uses an LLM to break down paragraphs into atomic facts or "propositions"~\cite{chen_dense_2024}. Each proposition becomes a chunk, which creates highly specific units ideal for factual lookups. However, this can significantly increase the total number of chunks and is computationally expensive due to its reliance on LLM inference.
+	\item \textbf{Semantic Sentence Splitting:} This technique calculates semantic similarity between adjacent sentences using embeddings. When the similarity drops below a threshold, indicating a topic shift, a boundary is inserted~\cite{greg_5_levels_of_text_splitting_nodate}. This adapts to the flow of the document's content.
+	\item \textbf{Proposition-Based Chunking:} This method uses an LLM to break down text into atomic facts or ``propositions''~\cite{chen_dense_2024}. Each proposition becomes a chunk, which creates highly specific units ideal for factual lookups. However, this can significantly increase the total number of chunks and is computationally expensive due to its reliance on LLM inference.
 	\item \textbf{LumberChunker:} This approach directly instructs an LLM to segment the document by inserting breakpoints between paragraphs where it detects a topic shift~\cite{duarte_lumberchunker_2024}. While powerful, this method is also slower and more expensive due to its use of LLM inference.
 \end{itemize}
-It is important to note that semantically-informed and LLM-guided strategies often build upon structure-based heuristics. For example, semantic sentence splitting relies on an initial sentence segmentation, while both proposition-based chunking and LumberChunker typically operate on paragraph-level text.
 
+It is important to note that semantically-informed and LLM-guided strategies often build upon structure-based heuristics. For example, semantic sentence splitting relies on an initial sentence segmentation, while both proposition-based chunking and LumberChunker typically operate on paragraph-level text.
 
 \subsection{Pre-Embedding vs. Contextualized Chunking}
 
@@ -44,7 +42,7 @@ The \textit{pre-embedding} paradigm, which has been the traditional approach, se
 
 In contrast, the \textit{contextualized chunking} paradigm (also known as late chunking) reverses this order. First, a long-context encoder processes the entire document, generating token-level embeddings that are aware of the global context~\cite{gunther_late_2025}. Only then are chunk boundaries applied. The final embedding for each chunk is produced by pooling (e.g., averaging) the embeddings of the tokens it contains. This approach preserves cross-chunk relationships at the cost of higher computational and memory requirements.
 
-\subsection{Evaluation Paradigms}
+\subsection{Evaluation Tasks}
 As noted in the introduction, prior work has used inconsistent settings, making direct comparisons difficult. To ensure a fair evaluation, we test each chunking strategy across the two dominant retrieval paradigms:
 \begin{itemize}
 	\item \textbf{In-Document Retrieval:} Also known as "needle-in-a-haystack," this task involves finding a specific piece of information within a single long document. It tests a method's ability to precisely locate content.

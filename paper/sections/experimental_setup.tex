@@ -5,44 +5,43 @@ We evaluate each chunking strategy using the unified framework described in Sect
 \subsection{Segmentation Methods}
 To ensure a fair comparison, we use a consistent implementation for each segmentation strategy across all datasets.
 
-For \textbf{structure-based heuristics}: the \textbf{Paragraphs} strategy defines chunks by newline characters, collapsing consecutive blank lines into a single boundary. The \textbf{Fixed-Size} method divides documents into uniform 512-token segments with no overlap. Finally, the \textbf{Sentences} approach creates chunks from single sentences, as identified by the spaCy `en\_core\_web\_sm` model.
+For \textbf{structure-based heuristics}: the \textbf{Paragraphs} strategy splits documents at newline characters and removes empty segments. The \textbf{Fixed-Size} method divides documents into uniform 256-token segments with no overlap. The \textbf{Sentences} approach uses a regex-based splitter and groups five sentences per chunk by default, following the implementation from LateChunking~\cite{latechunking2024}.
 
-For \textbf{semantically-informed and LLM-guided strategies}, the \textbf{Semantic Sentence} strategy follows the open-source implementation from~\cite{semantic-splitting-source}, using \texttt{jina-embeddings-v2-small-en} to compute the cosine similarity between adjacent sentences and inserting a boundary when the similarity falls below 0.5. For both \textbf{Proposition-Based} and \textbf{LumberChunker} strategies, we prompt the \texttt{Gemini-1.5-Flash} model for chunking document, following previous work from~\cite{duarte_lumberchunker_2024}, to make sure output as deterministic as possible, we set the model generation temperature to 0.0.
+For \textbf{semantically-informed and LLM-guided strategies}, the \textbf{Semantic Sentence} strategy employs llama-index's \texttt{SemanticSplitterNodeParser} with \texttt{jina-embeddings-v2-small-en}, also following the LateChunking work~\cite{latechunking2024}, to compute cosine similarity between adjacent sentences and insert boundaries based on similarity thresholds. For the \textbf{Proposition-Based} strategy, we utilize \texttt{Gemini-1.5-Flash} for processing (implementation details in supplementary materials). The \textbf{LumberChunker} strategy uses a configurable generator system with \texttt{Gemini-1.5-Flash} for fair comparison across LLM-based methods. For all LLM-based methods, we set the generation temperature to 0.0 to ensure deterministic output.
 
 \subsection{Embedding Models Used}
 
-For embedding models used to evaluate the effectiveness of different segmantation strategies and embedding paradigm, we select the following four models:
-
+To evaluate the effectiveness of different segmentation strategies and embedding paradigms, we select the following four models:
 \begin{itemize}
-	\item \textbf{jina-embeddings-v2-small-en}
+	\item \textbf{jina-embeddings-v2-small-en~\cite{}}: A lightweight model optimized for efficiency while maintaining competitive performance.
 	
-	\item \textbf{jina-embeddings-v3}
+	\item \textbf{jina-embeddings-v3~\cite{}}: An updated version with improved multilingual capabilities and semantic understanding.
 	
-	\item \textbf{nomic-embed-text-v1}
+	\item \textbf{nomic-embed-text-v1~\cite{}}: A model designed for high-quality dense retrieval with strong performance on diverse benchmarks.
 	
-	\item \textbf{multilingual-e5-base}
+	\item \textbf{multilingual-e5-base~\cite{}}: A multilingual model using mean pooling for text representation.
 \end{itemize}
 
+While the first three models were evaluated in the original LateChunking work~\cite{latechunking2024}, we additionally include multilingual-e5-base to test the robustness of our approach. Since LateChunking requires models that use average pooling for representation, our selection was constrained to the highest-performing embedding models on the MTEB leaderboard that employ mean pooling for text representation.
 
-While the first three models were evaluated in the initial late-chunking method, we also select an additional model multilingual-e5-base to test its robustness, as a nature of late-chunking that has to use average pooling for representation, our selection is constrained by selecting from Mteb leaderboard the highest performing embedding model that is using mean pooling for text representation.
-
-While all of the embedding models are able to handle the \textit{pre-embedding} cases, where each document is firstly chunked and encoded seperatly; during ~\textit{Contextualized chunking}, it requires to input multiple chunks together to the embedding model, therefore a maximum possible chunk approach is used, that is: each time it will feed the maximum possible number of chunks in a document into the context window of the embedding model; once it exceed, it will create another chunking.
+All embedding models handle the \textit{pre-embedding} paradigm, where documents are first chunked and then each chunk is encoded separately. For \textit{contextualized chunking}, which requires encoding multiple chunks together, we employ a maximum context utilization strategy: we feed the maximum possible number of chunks that fit within the embedding model's context window. When the document exceeds this limit, we create a new context window for the remaining chunks.
 
 \subsection{Datasets and Evaluation}
 Our evaluation is designed to test the generalizability of chunking strategies across different retrieval tasks and domains.
 
-\textbf{In-Document Retrieval} is evaluated using the \textbf{GutenQA} dataset~\cite{duarte_lumberchunker_2024}, which contains over 50 classic literature books. For each book, a set of questions asks for specific information contained within that book. This task tests for precise information localization within a single, long document.
+\subsubsection{In-Document Retrieval}
+We evaluate in-document retrieval using the \textbf{Guten-\\QA} dataset~\cite{duarte_lumberchunker_2024}, which contains 100 classic literature books. For each book, a set of questions asks for specific information contained within that book. Overall, there are 3,000 question-answer pairs derived from 100 books. This task tests for precise information localization within a single, long document.
 
-\textbf{In-Corpus Retrieval} is evaluated on a selection of datasets from the \textbf{BEIR} benchmark~\cite{thakur_beir_2021}: FiQA, ArguAna, SciDocs, TREC-COVID, SciFact, and NFCorpus. We chose these specific datasets based on two criteria. First, they cover a diverse range of retrieval tasks and domains, from finance and scientific articles to biomedical texts. Second, these datasets have a relatively small number of documents, which was a practical consideration to manage the computational cost associated with the LLM-guided chunking methods.
+The ground truth in GutenQA is annotated at the paragraph level. Since chunks may contain partial paragraphs or span multiple paragraphs, we consider a retrieved chunk as relevant if it overlaps with any ground-truth paragraph. We evaluate retrieval performance by examining whether the top-n retrieved chunks contain the relevant information.
 
-All text is lowercased and tokenized using the specific tokenizer provided with each embedding model.
-
-
-For ~\textbf{In Document retrieval}, ground-truth is per paragraph, but each chunk may include only a portion of one paragraph, or multiple paragraphs combined together; to distinguish if a retrieved chunk is relevant or not, we match the top n retrieved chunks with the paragraph \todo{is this what we do?}
-
-On the other hand, for \textbf{In-Corpus Retrieval}, ground truth is typically per-document, in this case, we just use the score of the top-ranked chunk of the document to represent the relevance of the document. As specified by previous paper by~\cite{zhuyun}, this is the most effective way ... 
-
-For evaluation metrics, we use 
-Following standard practices for these datasets, we report nDCG@10 (normalized Discounted Cumulative Gain at rank 10) for all BEIR tasks and DCG@10 for GutenQA. The formula for DCG is:
+For evaluation, we report DCG@10 (Discounted Cumulative Gain at rank 10), following exisiting work from LumberChunker~\cite{}, calculated as:
 $$ \mathrm{DCG@10} = \sum_{i=1}^{10} \frac{2^{\mathrm{rel}_i} - 1}{\log_2(i+1)} $$
-where $\mathrm{rel}_i$ is the relevance score of the result at rank $i$. The nDCG@10 metric normalizes this score by the best possible DCG@10 score, producing a value between 0 and 1. All metrics are calculated using the official BEIR evaluation toolkit.
+where $\mathrm{rel}_i$ is the relevance score of the result at rank $i$.
+
+\subsubsection{In-Corpus Retrieval}
+We evaluate in-corpus retrieval on a selection of datasets from the \textbf{BEIR} benchmark~\cite{thakur_beir_2021}: FiQA, ArguAna, SciDocs, TREC-COVID, SciFact, and NFCorpus. We chose these specific datasets based on two criteria. First, they cover a diverse range of retrieval tasks and domains, from finance and scientific articles to biomedical texts. Second, these datasets have a relatively small number of documents, which was a practical consideration to manage the computational cost associated with the LLM-guided chunking methods.
+
+For in-corpus retrieval, ground truth is annotated at the document level. Following established practices~\cite{dai2019deeper}, we use the score of the highest-ranked chunk from each document as the document's relevance score. This max-pooling approach has been shown to be the most effective strategy for aggregating chunk-level scores to document-level rankings.
+
+For evaluation, we report nDCG@10 (normalized Discounted Cumulative Gain at rank 10) for all BEIR tasks. The nDCG@10 metric normalizes the DCG@10 score by the ideal DCG@10 score, producing a value between 0 and 1.
+
