@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.8.23)  20 OCT 2025 08:33
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.8.23)  20 OCT 2025 08:42
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -754,7 +754,19 @@ LaTeX Warning: Citation ` ' on page 6 undefined on input line 18.
 LaTeX Warning: Citation ` ' on page 6 undefined on input line 20.
 
 
+Overfull \hbox (2.28445pt too wide) in paragraph at lines 20--21
+[]\OT1/cmr/bx/n/10 nomic-embed-text-v1(Normic-v1) [?]\OT1/cmr/m/n/10 : A model 
+de-signed for high-quality
+ []
+
+
 LaTeX Warning: Citation ` ' on page 6 undefined on input line 22.
+
+
+Overfull \hbox (3.69702pt too wide) in paragraph at lines 22--23
+[]\OT1/cmr/bx/n/10 multilingual-e5-base(E5-base) [?]\OT1/cmr/m/n/10 : A mul-ti-
+lin-gual model us-ing mean pool-
+ []
 
 
 LaTeX Warning: Citation `latechunking2024' on page 6 undefined on input line 25
@@ -856,7 +868,7 @@ ve/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmti9.pfb></usr/local/texlive
 /2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt10.pfb></usr/local/texlive/
 2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt9.pfb></usr/local/texlive/20
 25/texmf-dist/fonts/type1/public/cm-super/sfrm0900.pfb>
-Output written on ecir2026-chunking.pdf (13 pages, 474889 bytes).
+Output written on ecir2026-chunking.pdf (13 pages, 475386 bytes).
 PDF statistics:
  199 PDF objects out of 1000 (max. 8388607)
  146 compressed objects within 2 object streams

@@ -4,7 +4,7 @@
 
 \subsection{RQ1: Impact of Chunking Strategies in Multi-Document Retrieval}
 
-To establish baseline effectiveness characteristics of different chunking strategies, we evaluated six chunkers across seven BEIR datasets using four state-of-the-art embedding models. Table~\ref{tab:results_regular_encoder} presents the results using traditional pre-embedding chunking, focusing on the corpus-level retrieval columns (fiqa through scidocs).
+To establish baseline effectiveness characteristics of different chunking strategies, we evaluated six chunkers across seven BEIR datasets using four state-of-the-art embedding models. Table~\ref{tab:results_regular_encoder} presents the results using traditional pre-embedding chunking, focusing on the corpus-level retrieval columns (fiqa through scidocs). We conclude our findings as follows:
 
 \textbf{No single chunking strategy dominates across all scenarios.} The effectiveness of chunkers varies significantly depending on the embedding model and dataset characteristics. Across the six corpus-level retrieval tasks, paragraph-based chunking achieves the highest average effectiveness for three out of four models (Jina-v2: 0.4303, Jina-v3: 0.4948, E5-Large: 0.4997), while fixed-size chunking performs best with Nomic embeddings (0.4828). This suggests that the optimal strategy depends on how different embedding models encode semantic boundaries.
 
