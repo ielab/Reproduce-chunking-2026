@@ -35,6 +35,7 @@ class DocumentSplitTracker:
     paragraphs: List[str]
     prefixed_paragraphs: List[str]
     splitter_list: List[int] = field(default_factory=lambda: [0])
+    processed_paragraphs: int = 0
 
 
 @CHUNKER_REG.register("LumberChunker")
@@ -120,6 +121,7 @@ class LumberChunker(BaseChunker):
             self.llm_prompt_batch_size = max(prompt_batch_size, 1)
 
         self.use_batch_api = _safe_bool(kwargs.get("use_batch_api"), False)
+        self.show_paragraph_progress = _safe_bool(kwargs.get("show_paragraph_progress"), True)
 
     @staticmethod
     def _segment_sentence(text: str) -> List[str]:
@@ -178,7 +180,10 @@ class LumberChunker(BaseChunker):
 
         return seg_list
 
-    def request_generative_llm(self, tracker_dict: Dict[str, DocumentSplitTracker], still_active_id_list: List):
+    def request_generative_llm(self,
+                               tracker_dict: Dict[str, DocumentSplitTracker],
+                               still_active_id_list: List,
+                               paragraph_pbar=None):
 
         prompts = []
         doc_order = []
@@ -254,7 +259,18 @@ class LumberChunker(BaseChunker):
                 match = re.search(r"Answer: ID (\d+)", response)
                 if match:
 
-                    tracker_dict[doc_id].splitter_list.append(int(match.group(1)))
+                    next_boundary = int(match.group(1))
+                    tracker = tracker_dict[doc_id]
+                    tracker.splitter_list.append(next_boundary)
+
+                    if paragraph_pbar:
+                        total_paragraphs = len(tracker.paragraphs)
+                        bounded_boundary = min(next_boundary, total_paragraphs)
+                        progress_delta = max(bounded_boundary - tracker.processed_paragraphs, 0)
+                        if progress_delta:
+                            tracker.processed_paragraphs += progress_delta
+                            paragraph_pbar.set_description(f"{doc_id} paragraphs")
+                            paragraph_pbar.update(progress_delta)
                 else:
                     print('repeat this one')
             else:
@@ -277,48 +293,67 @@ class LumberChunker(BaseChunker):
 
         active_doc_ids = list(tracker_dict.keys())
 
-        # request the llm recursively in a batch
-        while True:
+        paragraph_pbar = None
+        if self.show_paragraph_progress:
+            total_paragraphs = sum(len(tracker.paragraphs) for tracker in tracker_dict.values())
+            if total_paragraphs > 0:
+                paragraph_pbar = tqdm(total=total_paragraphs,
+                                      desc="Paragraphs processed",
+                                      leave=False)
 
-            # find still active docs
-            still_active_id_list = []
+        try:
+            # request the llm recursively in a batch
+            while True:
 
-            for doc_id in active_doc_ids:
-                chunking_context = tracker_dict[doc_id]
-                if chunking_context.splitter_list[-1] + self.buffer_size <= len(chunking_context.paragraphs):
-                    still_active_id_list.append(doc_id)
-            if len(still_active_id_list) <= 0:
-                break
+                # find still active docs
+                still_active_id_list = []
 
-            self.request_generative_llm(tracker_dict, still_active_id_list)
-        # chunking
+                for doc_id in active_doc_ids:
+                    chunking_context = tracker_dict[doc_id]
+                    if chunking_context.splitter_list[-1] + self.buffer_size <= len(chunking_context.paragraphs):
+                        still_active_id_list.append(doc_id)
+                if len(still_active_id_list) <= 0:
+                    break
 
-        chunks: List[Chunk] = []
+                self.request_generative_llm(tracker_dict, still_active_id_list, paragraph_pbar=paragraph_pbar)
+            # chunking
 
-        for doc_id, tracker in tracker_dict.items():
+            chunks: List[Chunk] = []
 
-            splitter_list = tracker.splitter_list
+            for doc_id, tracker in tracker_dict.items():
 
-            splitter_list.append(len(tracker.paragraphs))
+                splitter_list = tracker.splitter_list
 
-            chunk_counter = count()
+                splitter_list.append(len(tracker.paragraphs))
 
-            for i in range(len(splitter_list)):
-                start = 0 if i == 0 else splitter_list[i - 1]
-                end = splitter_list[i]
+                if paragraph_pbar and tracker.processed_paragraphs < len(tracker.paragraphs):
+                    remaining = len(tracker.paragraphs) - tracker.processed_paragraphs
+                    if remaining > 0:
+                        paragraph_pbar.set_description(f"{doc_id} paragraphs")
+                        paragraph_pbar.update(remaining)
+                        tracker.processed_paragraphs += remaining
 
-                if tracker.paragraphs[start:end]:
+                chunk_counter = count()
 
-                    chunk_text = "\n".join(tracker.paragraphs[start:end])
-                    chunk = Chunk(
-                        doc_id=doc_id,
-                        chunk_id=f"{doc_id}-Chunk-{next(chunk_counter)}",
-                        text=chunk_text
-                    )
+                for i in range(len(splitter_list)):
+                    start = 0 if i == 0 else splitter_list[i - 1]
+                    end = splitter_list[i]
 
-                    chunks.append(chunk)
+                    if tracker.paragraphs[start:end]:
 
-        return chunks
+                        chunk_text = "\n".join(tracker.paragraphs[start:end])
+                        chunk = Chunk(
+                            doc_id=doc_id,
+                            chunk_id=f"{doc_id}-Chunk-{next(chunk_counter)}",
+                            text=chunk_text
+                        )
+
+                        chunks.append(chunk)
+
+            return chunks
+        finally:
+            if paragraph_pbar:
+                paragraph_pbar.close()
 
     def chunk(self, raw_docs: List[Document]):
 
