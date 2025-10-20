@@ -26,7 +26,7 @@ def cmd_chunk(args: argparse.Namespace):
     p_kw = {k: args_dict[k] for k in processor_keys}
 
     chunker_keys = ['embedding_model_name', 'tokenizer_name', 'sample', 'gen_backbone',
-                    'generative_model_name', 'batch_size']
+                    'generative_model_name', 'batch_size', 'resume']
     c_kw = {k: args_dict[k] for k in chunker_keys}
 
     chunker_kwargs_str = args_dict.get('chunker_kwargs') or "{}"
@@ -55,7 +55,9 @@ def cmd_chunk(args: argparse.Namespace):
     if not os.path.exists(chunks_dir):
         os.makedirs(chunks_dir)
     else:
-        raise ValueError(f"{chunks_dir} already exists! Please remove it and try again.")
+        if not args.resume:
+            raise ValueError(f"{chunks_dir} already exists! Please remove it and try again.")
+        print(f"[chunk] Resuming existing run at {chunks_dir}")
     chunks_output_path = P.cs_chunks_path(chunk_run_id)
 
     # run processor and chunker
@@ -63,6 +65,7 @@ def cmd_chunk(args: argparse.Namespace):
     docs: List[Document] = processor.load_corpus()
 
     c_kw['chunk_sink_path'] = chunks_output_path
+    c_kw['resume'] = args.resume
 
     if c_all_params['chunker_name'] == "LumberChunker":
         if p_kw['dataset_name'] == "GutenQA":
@@ -451,6 +454,7 @@ def build_parser() -> argparse.ArgumentParser:
     pc.add_argument("--generative_model_name")
     pc.add_argument("--batch_size", type=int)
     pc.add_argument("--chunker_kwargs", default="{}")
+    pc.add_argument("--resume", action='store_true', help="Resume chunking into an existing run directory")
     pc.set_defaults(func=cmd_chunk)
 
     # embed
@@ -499,5 +503,4 @@ def main(argv: List[str]):
 if __name__ == '__main__':
     print(sys.argv[1:])
     main(sys.argv[1:])
-
 

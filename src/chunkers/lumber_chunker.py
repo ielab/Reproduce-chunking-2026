@@ -1,5 +1,8 @@
+import gzip
+import json
+import os
 import re
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Set
 from itertools import count
 from dataclasses import dataclass, field
 
@@ -122,6 +125,45 @@ class LumberChunker(BaseChunker):
 
         self.use_batch_api = _safe_bool(kwargs.get("use_batch_api"), False)
         self.show_paragraph_progress = _safe_bool(kwargs.get("show_paragraph_progress"), True)
+
+        self.resume = _safe_bool(kwargs.get("resume"), False)
+        self.processed_doc_ids: Set[str] = set()
+
+        if self.resume and chunk_sink_path:
+            if os.path.exists(chunk_sink_path):
+                self.processed_doc_ids = self._load_processed_doc_ids(chunk_sink_path)
+                print(f"[LumberChunker] Loaded {len(self.processed_doc_ids)} completed documents for resume.")
+            else:
+                print(f"[LumberChunker] Resume requested but no existing chunk file at {chunk_sink_path}. Starting fresh.")
+                self.resume = False
+
+    def _load_processed_doc_ids(self, path: str) -> Set[str]:
+        doc_ids: Set[str] = set()
+
+        if not os.path.exists(path):
+            return doc_ids
+
+        opener = gzip.open if path.endswith(".gz") else open
+
+        try:
+            with opener(path, "rt", encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        record = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    doc_id = record.get("doc_id")
+                    if doc_id is not None:
+                        doc_ids.add(doc_id)
+        except FileNotFoundError:
+            return set()
+        except Exception as exc:
+            print(f"[LumberChunker] Failed to read existing chunks for resume: {exc}")
+
+        return doc_ids
 
     @staticmethod
     def _segment_sentence(text: str) -> List[str]:
@@ -364,6 +406,16 @@ class LumberChunker(BaseChunker):
         if self._sample is not None:
             raw_docs = raw_docs[:self._sample]
 
+        if self.resume and self.processed_doc_ids:
+            original_count = len(raw_docs)
+            raw_docs = [doc for doc in raw_docs if doc.doc_id not in self.processed_doc_ids]
+            skipped = original_count - len(raw_docs)
+            if skipped > 0:
+                print(f"[LumberChunker] Skipping {skipped} documents already processed.")
+            if not raw_docs:
+                print("[LumberChunker] No remaining documents to process. Resume finished.")
+                return chunks
+
         for i in tqdm(range(0, len(raw_docs), self.batch_size)):
 
             batch_documents = raw_docs[i:i + self.batch_size]
@@ -374,5 +426,7 @@ class LumberChunker(BaseChunker):
                 self._sink.write_batch(batch_chunks)
 
             chunks.extend(batch_chunks)
+            if self.resume:
+                self.processed_doc_ids.update(chunk.doc_id for chunk in batch_chunks)
 
         return chunks
