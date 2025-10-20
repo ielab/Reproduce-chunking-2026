@@ -14,6 +14,7 @@ class BaseGenerator(ABC):
                  display_name: str = None,
                  in_batch=True,
                  structured_output: Optional[str] = None,
+                 max_workers: Optional[int] = None,
                  ) -> Dict[str, Any]:
         """
         return: {'status': str, responses: List[str]}

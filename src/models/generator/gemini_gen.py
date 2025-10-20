@@ -3,6 +3,7 @@ import time
 import os
 import json
 from io import BytesIO
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from google import genai
 from google.genai.types import JobState
@@ -182,14 +183,30 @@ class GeminiGenerator(BaseGenerator):
         ordered_results = [results_dict.get(i) for i in range(input_length)]
         return ordered_results
 
+    def _call_model(self,
+                    prompt: str,
+                    system_instruction: str,
+                    generation_config: Dict[str, Any]) -> Optional[str]:
+        response = self.client.models.generate_content(
+            model=self.model,
+            contents=prompt,
+            config={
+                "system_instruction": system_instruction,
+                **generation_config
+            }
+        )
+        return response.text
+
     def get_response_no_batch(self,
                               prompts: List[str],
                               system_instruction: str,
                               temperature: float = 0,
                               structured_output: dict = None,
+                              max_workers: Optional[int] = None,
                               ):
 
-        responses = []
+        if not prompts:
+            return []
 
         # Build generation config
         generation_config = {
@@ -198,20 +215,31 @@ class GeminiGenerator(BaseGenerator):
         if structured_output:
             generation_config.update(structured_output)
 
-        for prompt in prompts:
-            try:
-                response = self.client.models.generate_content(
-                    model=self.model,
-                    contents=prompt,
-                    config={
-                        "system_instruction": system_instruction,
-                        **generation_config
-                    }
-                )
-                responses.append(response.text)
-            except Exception as e:
-                print(f"Error generating response: {e}")
-                responses.append(None)
+        max_workers = max_workers or 1
+        responses: List[Optional[str]] = [None] * len(prompts)
+
+        if max_workers <= 1:
+            for idx, prompt in enumerate(prompts):
+                try:
+                    responses[idx] = self._call_model(prompt, system_instruction, generation_config)
+                except Exception as e:
+                    print(f"Error generating response: {e}")
+                    responses[idx] = None
+            return responses
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_idx = {
+                executor.submit(self._call_model, prompt, system_instruction, generation_config): idx
+                for idx, prompt in enumerate(prompts)
+            }
+
+            for future in as_completed(future_to_idx):
+                idx = future_to_idx[future]
+                try:
+                    responses[idx] = future.result()
+                except Exception as e:
+                    print(f"Error generating response: {e}")
+                    responses[idx] = None
 
         return responses
 
@@ -223,6 +251,7 @@ class GeminiGenerator(BaseGenerator):
                  display_name: str = None,
                  in_batch=True,
                  structured_output: Optional[str] = None,
+                 max_workers: Optional[int] = None,
                  ) -> Dict[str, Any]:
 
 
@@ -262,7 +291,8 @@ class GeminiGenerator(BaseGenerator):
                 prompts=prompts,
                 system_instruction=system_instruction,
                 temperature=temperature,
-                structured_output=structured_output_dict)
+                structured_output=structured_output_dict,
+                max_workers=max_workers)
 
             result["responses"] = responses
             result["status"] = "JOB_STATE_SUCCEEDED"

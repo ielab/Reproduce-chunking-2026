@@ -83,6 +83,44 @@ class LumberChunker(BaseChunker):
         self._sink = JsonlSink(chunk_sink_path) if chunk_sink_path else None
         self._sample = kwargs.get("sample")
 
+        def _safe_int(value, default):
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return default
+
+        def _safe_bool(value, default):
+            if value is None:
+                return default
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, str):
+                lower = value.strip().lower()
+                if lower in {"true", "1", "yes", "y"}:
+                    return True
+                if lower in {"false", "0", "no", "n"}:
+                    return False
+            return default
+
+        workers_candidate = (
+            kwargs.get("llm_workers")
+            or kwargs.get("num_workers")
+            or kwargs.get("llm_max_workers")
+        )
+        self.llm_max_workers = max(_safe_int(workers_candidate, 1), 1)
+
+        prompt_batch_candidate = (
+            kwargs.get("llm_batch_size")
+            or kwargs.get("prompt_batch_size")
+        )
+        prompt_batch_size = _safe_int(prompt_batch_candidate, None)
+        if prompt_batch_size is None:
+            self.llm_prompt_batch_size = None
+        else:
+            self.llm_prompt_batch_size = max(prompt_batch_size, 1)
+
+        self.use_batch_api = _safe_bool(kwargs.get("use_batch_api"), False)
+
     @staticmethod
     def _segment_sentence(text: str) -> List[str]:
 
@@ -143,6 +181,7 @@ class LumberChunker(BaseChunker):
     def request_generative_llm(self, tracker_dict: Dict[str, DocumentSplitTracker], still_active_id_list: List):
 
         prompts = []
+        doc_order = []
 
         for doc_id in still_active_id_list:
             tracker = tracker_dict[doc_id]
@@ -153,29 +192,63 @@ class LumberChunker(BaseChunker):
             prompt = f'\nDocument:\n' + '\n'.join(seg_list)
 
             prompts.append(prompt)
+            doc_order.append(doc_id)
 
         try:
 
-            in_batch = False if len(prompts) <= 10 else True
+            doc_responses = []
 
-            llm_output = self.generation_model.generate(
-                prompts=prompts,
-                system_instruction=self.system_instruction,
-                temperature=0,
-                in_batch=in_batch
-            )
-            responses = llm_output["responses"]
+            if not prompts:
+                return
 
-            print(f"batch_size from {self.batch_size} to {len(prompts)}, in_batch = {in_batch}")
-            # print("llm responses: ", responses)
+            if self.use_batch_api:
+                in_batch = False if len(prompts) <= 10 else True
+
+                llm_output = self.generation_model.generate(
+                    prompts=prompts,
+                    system_instruction=self.system_instruction,
+                    temperature=0,
+                    in_batch=in_batch
+                )
+                responses = llm_output["responses"]
+
+                print(f"batch_size from {self.batch_size} to {len(prompts)}, in_batch = {in_batch}")
+                doc_responses.extend(zip(doc_order, responses))
+
+            else:
+                batch_size = self.llm_prompt_batch_size or len(prompts)
+
+                for start_idx in range(0, len(prompts), batch_size):
+                    end_idx = start_idx + batch_size
+                    batch_prompts = prompts[start_idx:end_idx]
+                    batch_doc_ids = doc_order[start_idx:end_idx]
+
+                    llm_output = self.generation_model.generate(
+                        prompts=batch_prompts,
+                        system_instruction=self.system_instruction,
+                        temperature=0,
+                        in_batch=False,
+                        max_workers=self.llm_max_workers
+                    )
+                    responses = llm_output["responses"]
+
+                    if len(responses) != len(batch_doc_ids):
+                        print("Warning: response size mismatch, padding with None")
+                        responses = (responses or []) + [None] * (len(batch_doc_ids) - len(responses or []))
+                        responses = responses[:len(batch_doc_ids)]
+
+                    doc_responses.extend(zip(batch_doc_ids, responses))
+
+                print(f"Processed {len(prompts)} prompts with max_workers={self.llm_max_workers}"
+                      f"{'' if self.llm_prompt_batch_size is None else f', prompt_batch_size={self.llm_prompt_batch_size}'}")
 
         except Exception as e:
             print(f"Error in generating llm: {e}")
-            responses = [None] * len(still_active_id_list)
+            doc_responses = [(doc_id, None) for doc_id in doc_order]
 
         # clip the result
 
-        for doc_id, response in zip(still_active_id_list, responses):
+        for doc_id, response in doc_responses:
 
             if response:
                 match = re.search(r"Answer: ID (\d+)", response)
@@ -268,4 +341,3 @@ class LumberChunker(BaseChunker):
             chunks.extend(batch_chunks)
 
         return chunks
-

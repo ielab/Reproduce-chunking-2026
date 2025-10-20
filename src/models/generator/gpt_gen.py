@@ -164,7 +164,8 @@ class GPTGenerator(BaseGenerator):
                               prompts: List[str],
                               system_instruction: str = None,
                               temperature: float = 0,
-                              structured_output: dict = None
+                              structured_output: dict = None,
+                              max_workers: Optional[int] = None
                               ):
 
         responses = []
@@ -212,6 +213,7 @@ class GPTGenerator(BaseGenerator):
                  display_name: str = None,
                  in_batch=True,
                  structured_output: Optional[str] = None,
+                 max_workers: Optional[int] = None,
                  ) -> Dict[str, Any]:
 
         result = {
@@ -246,7 +248,8 @@ class GPTGenerator(BaseGenerator):
                 prompts=prompts,
                 system_instruction=system_instruction,
                 temperature=temperature,
-                structured_output=structured_output
+                structured_output=structured_output,
+                max_workers=max_workers
             )
 
             result["responses"] = responses
@@ -269,7 +272,6 @@ if __name__ == "__main__":
     result = gen_model.generate(prompts=p_s, system_instruction=ins, structured_output='array', in_batch=False)
 
     print(result)
-
 
 
 
