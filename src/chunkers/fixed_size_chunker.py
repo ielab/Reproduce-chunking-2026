@@ -14,7 +14,7 @@ class FixedSizeChunker(BaseChunker):
 
     def __init__(self,
                  chunk_sink_path: str|None=None,
-                 fixed_size:int=512,
+                 fixed_size:int=256,
                  **kwargs
                  ):
 

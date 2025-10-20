@@ -66,16 +66,42 @@ for PROCESSOR in "${PROCESSORS[@]}"; do
         for CHUNKER in "${CHUNKERS[@]}"; do
             echo ">>> Running processor=$PROCESSOR | dataset=$DATASET | chunker=$CHUNKER"
 
+            chunk_run_id="$CHUNKER"
+            chunker_kwargs='{}'
+
+            case "$CHUNKER" in
+              "FixedSizeChunker")
+                chunk_run_id="FixedSizeChunker-256"
+                chunker_kwargs='{"fixed_size":256}'
+                ;;
+              "ParagraphChunker"|"SentenceChunker"|"SemanticChunker")
+                chunk_run_id="$CHUNKER"
+                ;;
+            esac
+
+            chunks_dir="$OUTPUT_FOLDER/$DATASET/chunks/$chunk_run_id"
+            if [[ -d "$chunks_dir" ]]; then
+                echo ">>> Skipping $chunk_run_id (already exists at $chunks_dir)"
+                if [[ $first_chunker -eq 1 ]]; then
+                    first_chunker=0
+                fi
+                continue
+            fi
 
             CMD=(
               python -m src.runner chunker
               --processor_name "$PROCESSOR"
               --dataset_name "$DATASET"
               --data_folder "$DATA_FOLDER"
-#              --sample "$SAMPLE"
+#             --sample "$SAMPLE"
               --chunker "$CHUNKER"
               --output_folder "$OUTPUT_FOLDER"
+              --chunk_run_id "$chunk_run_id"
             )
+
+            if [[ "$chunker_kwargs" != "{}" ]]; then
+                CMD+=( --chunker_kwargs "$chunker_kwargs" )
+            fi
 
             # Only the first chunker per dataset includes --query
             if [[ $first_chunker -eq 1 ]]; then
