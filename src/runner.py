@@ -16,19 +16,18 @@ from src.evaluators import BaseEvaluator
 from src.io import *
 from src.io.sink import write_trec_file
 
-
 API_KEY = None
 
 
 def cmd_chunk(args: argparse.Namespace):
-
     args_dict = vars(args)
 
     processor_keys = ['dataset_name', 'data_folder']
     p_kw = {k: args_dict[k] for k in processor_keys}
 
-    chunker_keys = ['embedding_model_name', 'tokenizer_name', 'sample']
-    c_kw = {k: args_dict[k] for k in chunker_keys if args_dict.get(k) is not None}
+    chunker_keys = ['embedding_model_name', 'tokenizer_name', 'sample', 'gen_backbone',
+                    'generative_model_name', 'batch_size']
+    c_kw = {k: args_dict[k] for k in chunker_keys}
 
     chunker_kwargs_str = args_dict.get('chunker_kwargs') or "{}"
     try:
@@ -63,9 +62,16 @@ def cmd_chunk(args: argparse.Namespace):
     processor: BaseProcessor = PROCESSOR_REG.get(p_all_params['processor_name'])(**p_kw)
     docs: List[Document] = processor.load_corpus()
 
-    chunker_init_kwargs = {**c_kw, 'chunk_sink_path': chunks_output_path}
-    print(chunker_init_kwargs)
-    chunker: BaseChunker = CHUNKER_REG.get(c_all_params['chunker_name'])(**chunker_init_kwargs)
+    c_kw['chunk_sink_path'] = chunks_output_path
+
+    if c_all_params['chunker_name'] == "LumberChunker":
+        if p_kw['dataset_name'] == "GutenQA":
+            c_kw['granularity'] = "paragraph"
+        else:
+            c_kw['granularity'] = "sentence"
+
+    print(c_kw)
+    chunker: BaseChunker = CHUNKER_REG.get(c_all_params['chunker_name'])(**c_kw)
     chunker.chunk(raw_docs=docs)
 
     write_chunk_manifest(
@@ -212,8 +218,8 @@ def cmd_encoder(args: argparse.Namespace):
 
             print(f'[query embeddings] wrote -> {query_embeddings_output_path}')
 
-def cmd_evaluator(args: argparse.Namespace):
 
+def cmd_evaluator(args: argparse.Namespace):
     import time
 
     start = time.perf_counter()
@@ -297,7 +303,8 @@ def cmd_evaluator(args: argparse.Namespace):
 
             print(ndcg)
             print(recall)
-            results = {'ndcg': ndcg, 'recall': recall, 'per_query_eval': per_query_eval, 'ranking_results': ranking_results}
+            results = {'ndcg': ndcg, 'recall': recall, 'per_query_eval': per_query_eval,
+                       'ranking_results': ranking_results}
 
         elif evaluator_name == 'GutenQA':
             from collections import defaultdict
@@ -343,7 +350,8 @@ def cmd_evaluator(args: argparse.Namespace):
             print(final_dcg_dict)
             print(final_recall_dict)
 
-            results = {'dcg': final_dcg_dict, 'recall': final_recall_dict, 'per_query_eval': per_query_eval, 'ranking_results': ranking_results}
+            results = {'dcg': final_dcg_dict, 'recall': final_recall_dict, 'per_query_eval': per_query_eval,
+                       'ranking_results': ranking_results}
 
     else:
         # Normal mode: perform search
@@ -364,13 +372,14 @@ def cmd_evaluator(args: argparse.Namespace):
         )
 
         results = evaluator.evaluate(queries=queries,
-                           query_embeddings=query_embs,
-                           chunks=chunks,
-                           chunk_embeddings=chunk_embs
-                           )
+                                     query_embeddings=query_embs,
+                                     chunks=chunks,
+                                     chunk_embeddings=chunk_embs
+                                     )
 
     # Create the output directory structure
-    base_results_dir = os.path.join(args.source_path, args.dataset_name, 'results', args.chunk_run_id, args.chunk_embedding_run_id)
+    base_results_dir = os.path.join(args.source_path, args.dataset_name, 'results', args.chunk_run_id,
+                                    args.chunk_embedding_run_id)
     os.makedirs(base_results_dir, exist_ok=True)
 
     # Save TREC file (only if not in skip-search mode)
@@ -401,25 +410,25 @@ def cmd_evaluator(args: argparse.Namespace):
         # Create a valid filename
         filename = f"{metric_name}.eval"
         eval_file_path = os.path.join(base_results_dir, filename)
-        
+
         total_score = 0
         with open(eval_file_path, 'w') as f:
             for query_id, value in scores_list:
                 f.write(f"{query_id} {value}\n")
                 total_score += value
-        
+
         # Calculate and append the average
         if scores_list:
             average_score = total_score / len(scores_list)
             with open(eval_file_path, 'a') as f:
                 f.write(f"average {average_score}\n")
-        
+
         print(f'[evaluation] wrote -> {eval_file_path}')
 
     print('Eval time:', time.perf_counter() - mid)
 
-def build_parser() -> argparse.ArgumentParser:
 
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog='runner', description='Modular paper reproduction CLI')
     sub = parser.add_subparsers(dest='cmd', required=True)
 
@@ -428,7 +437,6 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Output path for both chunk and embed")
     common.add_argument("--query", action='store_true')
     common.add_argument("--query_run_id", default=None)
-
 
     # chunk
     pc = sub.add_parser('chunker', parents=[common], help='Run Chunker only')
@@ -439,10 +447,11 @@ def build_parser() -> argparse.ArgumentParser:
     pc.add_argument("--chunker", required=True)
     pc.add_argument("--embedding_model_name")
     pc.add_argument("--tokenizer_name")
+    pc.add_argument("--gen_backbone")
+    pc.add_argument("--generative_model_name")
+    pc.add_argument("--batch_size", type=int)
     pc.add_argument("--chunker_kwargs", default="{}")
-    pc.add_argument("--chunk_run_id", help="Optional override for chunk run directory name")
     pc.set_defaults(func=cmd_chunk)
-
 
     # embed
     pe = sub.add_parser('encoder', parents=[common], help='Run Encoder only')
@@ -454,7 +463,6 @@ def build_parser() -> argparse.ArgumentParser:
     pe.add_argument("--batch_size", required=True, type=int)
 
     pe.set_defaults(func=cmd_encoder)
-
 
     # eval
     # We need to load
@@ -473,16 +481,15 @@ def build_parser() -> argparse.ArgumentParser:
     peval.add_argument("--similarity", choices=['cosine', 'dot'])
     peval.add_argument("--source_path", required=True)
     peval.add_argument("--top_k", type=int, default=100, help="Number of top documents to save in TREC file.")
-    peval.add_argument("--skip-search", action='store_true', help="Skip search/ranking step and load existing TREC file for evaluation only.")
+    peval.add_argument("--skip-search", action='store_true',
+                       help="Skip search/ranking step and load existing TREC file for evaluation only.")
     peval.add_argument("--trec-file", type=str, help="Path to existing TREC file (required if --skip-search is used).")
     peval.set_defaults(func=cmd_evaluator)
-
 
     return parser
 
 
 def main(argv: List[str]):
-
     parser = build_parser()
     args = parser.parse_args(argv)
 
@@ -490,6 +497,7 @@ def main(argv: List[str]):
 
 
 if __name__ == '__main__':
-
     print(sys.argv[1:])
     main(sys.argv[1:])
+
+

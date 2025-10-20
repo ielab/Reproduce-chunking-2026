@@ -1,16 +1,16 @@
 import re
-from typing import List
+from typing import List, Dict, Union
 from itertools import count
-from copy import deepcopy
+from dataclasses import dataclass, field
 
-import tiktoken
+from tqdm import tqdm
+from transformers import AutoTokenizer
 
 from src.chunkers.base_chunker import BaseChunker
 from src.types import Document, Chunk
 from src.registry import CHUNKER_REG, GENERATOR_REG
 from src.io.sink import JsonlSink
-
-
+from src.models.generator.base_generator import BaseGenerator
 
 paragraph_system_prompt = """You will receive as input an english document with paragraphs identified by 'ID XXXX: <text>'.
 
@@ -19,7 +19,6 @@ Task: Find the first paragraph (not the first one) where the content clearly cha
 Output: Return the ID of the paragraph with the content shift as in the exemplified format: 'Answer: ID XXXX'.
 
 Additional Considerations: Avoid very long groups of paragraphs. Aim for a good balance between identifying content shifts and keeping groups manageable."""
-
 
 sentence_system_prompt = """You will receive as input an english document with sentences identified by 'ID XXXX: <text>'.
 
@@ -30,41 +29,59 @@ Output: Return the ID of the sentence with the content shift as in the exemplifi
 Additional Considerations: Avoid very long groups of sentences. Aim for a good balance between identifying content shifts and keeping groups manageable."""
 
 
+@dataclass
+class DocumentSplitTracker:
+    doc_id: str
+    paragraphs: List[str]
+    prefixed_paragraphs: List[str]
+    splitter_list: List[int] = field(default_factory=lambda: [0])
+
 
 @CHUNKER_REG.register("LumberChunker")
 class LumberChunker(BaseChunker):
 
     def __init__(self,
-                 granularity: str = 'sentence',
-                 **kwargs):
+                 gen_backbone: str,
+                 granularity: str = Union["sentence", "paragraph"],
+                 batch_size: int = 20000,
+                 chunk_sink_path: str | None = None,
+                 **kwargs
+                 ):
 
-        self.max_tokens = kwargs.get('max_tokens') or 8192
+        # gen model
+        gen_cls = GENERATOR_REG.get(gen_backbone)
+        generative_model_name = kwargs.get("generative_model_name")
+
+        if generative_model_name is None:
+            raise KeyError("Generative model name not found")
+
+        gen_backbone_kwargs = {"model": generative_model_name}
+        self.generation_model: BaseGenerator = gen_cls(**gen_backbone_kwargs or {})
+
+        # chunking hyperparameters
+        self.max_tokens = kwargs.get('max_tokens') or 550
+        self.buffer_size = 5
 
         self.granularity = granularity
+        self.batch_size = batch_size or 20000
 
-        self.tokenizer = tiktoken.encoding_for_model("text-embedding-ada-002")
-
+        tokenizer_name = kwargs.get("tokenizer_name") or "jinaai/jina-embeddings-v2-base-en"
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, trust_remote_code=True)
+        # self.tokenizer = tiktoken.encoding_for_model("gpt-4.1")
 
         if self.granularity == 'sentence':
             self.segment_function = self._segment_sentence
-            self.system_prompt = sentence_system_prompt
+            self.system_instruction = sentence_system_prompt
 
         elif self.granularity == 'paragraph':
             self.segment_function = self._segment_paragraph
-            self.system_prompt = paragraph_system_prompt
+            self.system_instruction = paragraph_system_prompt
 
         else:
             raise ValueError(f'granularity must be "sentence" or "paragraph"')
 
-        chunk_sink_path = kwargs.get('chunk_sink_path')
-
         self._sink = JsonlSink(chunk_sink_path) if chunk_sink_path else None
-
-        generator_name = kwargs.get('generator_name')
-        generator_cls = GENERATOR_REG.get('generator_name')
-        self.generator = generator_cls({})
-
-
+        self._sample = kwargs.get("sample")
 
     @staticmethod
     def _segment_sentence(text: str) -> List[str]:
@@ -76,12 +93,11 @@ class LumberChunker(BaseChunker):
 
         sentences = find_list[:1]
         for ids in range(1, len(find_list), 2):
-            sentences.append(find_list[ids] + find_list[ids+1])
+            sentences.append(find_list[ids] + find_list[ids + 1])
 
         sentences = [s for s in sentences if s.strip()]
 
         return sentences
-
 
     @staticmethod
     def _segment_paragraph(text: str) -> List[str]:
@@ -90,181 +106,166 @@ class LumberChunker(BaseChunker):
 
         return [x.strip() for x in pattern.split(text) if x.strip()]
 
+    def add_prefix(self, text_list: List[str]) -> List[str]:
+        """
+        add prefix for each paragraph/sentence
+        """
 
-    @staticmethod
-    def _add_prefix_ids(text_list: List[str]) -> List[str]:
+        prefix_text_list = []
 
-        copy_text_list = deepcopy(text_list)
+        for idx, text in enumerate(text_list):
+            prefix_text_list.append(f"ID {idx}: {text}")
 
-        new_text_list = []
+        return prefix_text_list
 
-        for idx, text in enumerate(copy_text_list):
-
-            text = f"ID {idx}: {text}"
-            new_text_list.append(text)
-
-        return new_text_list
-
-
-    def get_seg_list(self, text_list: List[str], start_idx:int):
+    def _segment_text_list(self, text_list: List[str], max_tokens: int = 550) -> List[str]:
 
         token_count = 0
 
         seg_list = []
 
-        for idx in range(start_idx, len(text_list)):
+        for text in text_list:
 
-            text = text_list[idx]
             tokens = self.tokenizer.encode(text)
-            if token_count == 0 and len(tokens) > self.max_tokens:
+            if token_count == 0 and len(tokens) > max_tokens:
                 seg_list.append(text)
                 break
 
-            if len(tokens) + token_count > self.max_tokens:
+            if len(tokens) + token_count > max_tokens:
                 break
 
             else:
                 token_count += len(tokens)
                 seg_list.append(text)
-        # print(token_count)
+
         return seg_list
 
+    def request_generative_llm(self, tracker_dict: Dict[str, DocumentSplitTracker], still_active_id_list: List):
 
-    def llm_generation(self, prompt):
+        prompts = []
 
-        # import random
-        #
-        # text = prompt.split('Document:')[-1].strip()
-        #
-        # text_list = text.split('\n')
-        #
-        # text_list = [t.lstrip('ID ') for t in text_list]
-        #
-        # id_list = [int(t.split(':')[0]) for t in text_list]
-        #
-        # idx = random.choice(id_list)
-        # print(id_list)
+        for doc_id in still_active_id_list:
+            tracker = tracker_dict[doc_id]
 
+            splitter = tracker.splitter_list[-1]
+            seg_list = self._segment_text_list(tracker.prefixed_paragraphs[splitter:], max_tokens=self.max_tokens)
 
-        response = self.generator.generate(prompt)
+            prompt = f'\nDocument:\n' + '\n'.join(seg_list)
 
+            prompts.append(prompt)
 
-        return response
+        try:
 
+            in_batch = False if len(prompts) <= 10 else True
 
-    def chunk(self, raw_docs: List[Document]):
+            llm_output = self.generation_model.generate(
+                prompts=prompts,
+                system_instruction=self.system_instruction,
+                temperature=0,
+                in_batch=in_batch
+            )
+            responses = llm_output["responses"]
 
-        # input: Document:
-        # each document should be a book in GutenQA or a passage in Beir
+            print(f"batch_size from {self.batch_size} to {len(prompts)}, in_batch = {in_batch}")
+            # print("llm responses: ", responses)
 
-        # granularity
-        # GutenQA, the smallest granularity is paragraph level
-        # Beir, the smallest granularity is sentence_level
+        except Exception as e:
+            print(f"Error in generating llm: {e}")
+            responses = [None] * len(still_active_id_list)
 
-        # hyperparameter:
-        # - max_tokens
+        # clip the result
 
-        chunks = []
+        for doc_id, response in zip(still_active_id_list, responses):
 
-        for document in raw_docs:
+            if response:
+                match = re.search(r"Answer: ID (\d+)", response)
+                if match:
 
-            text_list: List[str] = self.segment_function(document.text)
-            add_prefix_text_list = self._add_prefix_ids(text_list)
-
-            start_idx = 0
-            chunk_idx_list = []
-            while start_idx < len(add_prefix_text_list) - 5:
-
-                seg_list = self.get_seg_list(add_prefix_text_list, start_idx)
-                if len(seg_list) == 1:
-                    chunk_idx_list.append(start_idx+1)
-                    start_idx += 1
-                    continue
-
-                prompt = self.system_prompt + f'\nDocument:\n' + '\n'.join(seg_list)
-
-                gpt_output = self.llm_generation(prompt)
-
-                if gpt_output is not None:
-                    pattern = r"Answer: ID \d+"
-                    match = re.search(pattern, gpt_output)
+                    tracker_dict[doc_id].splitter_list.append(int(match.group(1)))
                 else:
-                    match = None
+                    print('repeat this one')
+            else:
+                print('repeat this one')
 
-                if match is None:
-                    print(f'repeat this one')
-                else:
-                    gpt_output1 = match.group(0)
-                    pattern = r'\d+'
-                    match = re.search(pattern, gpt_output1)
-                    chunk_splitter = int(match.group())
-                    chunk_idx_list.append(chunk_splitter)
-                    start_idx = chunk_splitter + 1
-                    print('splitter', chunk_splitter)
+    def lumber_chunking_pipeline(self, batch_document: List[Document]) -> List[Chunk]:
 
+        tracker_dict: Dict[str, DocumentSplitTracker] = {}
 
+        for doc in batch_document:
 
-            # # fix bug, when new_id_list == 0
-            # if len(new_id_list) > 0 and new_id_list[0] == 0:
-            #     new_id_list = new_id_list[1:]
+            paragraphs = self.segment_function(doc.text)
 
-            # # add last chunk to the list
-            chunk_idx_list.append(len(text_list))
+            tracker_dict[doc.doc_id] = DocumentSplitTracker(
+                doc_id=doc.doc_id,
+                paragraphs=paragraphs,
+                prefixed_paragraphs=self.add_prefix(paragraphs),
+                splitter_list=[0]
+            )
+
+        active_doc_ids = list(tracker_dict.keys())
+
+        # request the llm recursively in a batch
+        while True:
+
+            # find still active docs
+            still_active_id_list = []
+
+            for doc_id in active_doc_ids:
+                chunking_context = tracker_dict[doc_id]
+                if chunking_context.splitter_list[-1] + self.buffer_size <= len(chunking_context.paragraphs):
+                    still_active_id_list.append(doc_id)
+            if len(still_active_id_list) <= 0:
+                break
+
+            self.request_generative_llm(tracker_dict, still_active_id_list)
+        # chunking
+
+        chunks: List[Chunk] = []
+
+        for doc_id, tracker in tracker_dict.items():
+
+            splitter_list = tracker.splitter_list
+
+            splitter_list.append(len(tracker.paragraphs))
 
             chunk_counter = count()
 
-            for i in range(len(chunk_idx_list)):
+            for i in range(len(splitter_list)):
+                start = 0 if i == 0 else splitter_list[i - 1]
+                end = splitter_list[i]
 
-                start_idx = 0 if i == 0 else chunk_idx_list[i-1]
-                end_idx = chunk_idx_list[i]
+                if tracker.paragraphs[start:end]:
 
-                chunk_text = '\n'.join(text_list[start_idx:end_idx])
+                    chunk_text = "\n".join(tracker.paragraphs[start:end])
+                    chunk = Chunk(
+                        doc_id=doc_id,
+                        chunk_id=f"{doc_id}-Chunk-{next(chunk_counter)}",
+                        text=chunk_text
+                    )
 
-                chunk = Chunk(
-                    doc_id=document.doc_id,
-                    chunk_id=f'{document.doc_id}-Chunk-{next(chunk_counter)}',
-                    text=chunk_text
-                )
-
-                chunks.append(chunk)
-
-                if self._sink is not None:
-                    self._sink.write_batch([chunk])
+                    chunks.append(chunk)
 
         return chunks
 
+    def chunk(self, raw_docs: List[Document]):
 
-if __name__ == '__main__':
+        print("run LumberChunker")
 
-    # case
-    # 1. when tokens > max_tokens
-    # 2. when tokens < max_tokens
-    #   - tokens + next_tokens > max_tokens
-    #   - tokens + next_tokens + ... > max_tokens
-    #   - tokens + ... + last_tokens < max_tokens
+        chunks = []
 
-    paragraph_list = ['I '* 3, 'And '* 10, 'You ' * 5, 'Repeat '* 2, 'Kim '*3, 'Sent '* 3]
+        if self._sample is not None:
+            raw_docs = raw_docs[:self._sample]
 
+        for i in tqdm(range(0, len(raw_docs), self.batch_size)):
 
-    tokenizer = tiktoken.encoding_for_model("text-embedding-ada-002")
+            batch_documents = raw_docs[i:i + self.batch_size]
 
-    tokens_list =[len(tokenizer.encode(x)) for x in paragraph_list]
+            batch_chunks = self.lumber_chunking_pipeline(batch_documents)
 
-    print(tokens_list)
+            if self._sink:
+                self._sink.write_batch(batch_chunks)
 
-    text = '\n'.join(['I ' * 3, 'And ' * 10, 'You ' * 5, 'Repeat ' * 2, 'Kim ' * 3, 'Sent ' * 3])
-    documents = Document(doc_id=str(1), text=text)
-    # print(documents)
+            chunks.extend(batch_chunks)
 
-    # # init LumberChunker
-    #
-    chunker = LumberChunker(
-        granularity='paragraph',
-        max_tokens=25,
-    )
-    #
-    chunks = chunker.chunk([documents])
-
-    # seg_list = chunker.get_seg_list(paragraph_list, 4)
-    # print(seg_list)
+        return chunks
 
