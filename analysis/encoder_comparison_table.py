@@ -55,11 +55,25 @@ def get_chunker_display_name(chunker_name: str) -> str:
         'ParagraphChunker': 'Paragraph',
         'SentenceChunker': 'Sentence',
         'FixedSizeChunker': 'Fixed-Size',
+        'FixedSizeChunker-256': 'Fixed-Size (256)',
         'SemanticChunker': 'Semantic',
         'LumberChunker': 'Lumber',
+        'LumberChunker-GPT': 'Lumber (GPT)',
+        'LumberChunker-Gemini': 'Lumber (Gemini)',
         'Proposition': 'Proposition',
     }
     return chunker_mapping.get(chunker_name, chunker_name)
+
+
+def resolve_chunker_dir(base_path: str, dataset: str, chunker: str) -> Optional[str]:
+    results_root = Path(base_path) / dataset / 'results'
+    direct = results_root / chunker
+    if direct.exists():
+        return direct.name
+    candidates = sorted(results_root.glob(f"{chunker}-*"))
+    if candidates:
+        return candidates[0].name
+    return None
 
 
 def collect_results(
@@ -87,6 +101,10 @@ def collect_results(
     for dataset in datasets:
         for chunker in chunkers:
             for model in models:
+                chunker_dir_name = resolve_chunker_dir(base_path, dataset, chunker)
+                if chunker_dir_name is None:
+                    continue
+
                 # GutenQA uses DCG@10.eval, others use nDCG@10.eval
                 metric_file = 'DCG@10.eval' if dataset == 'GutenQA' else 'nDCG@10.eval'
 
@@ -95,14 +113,14 @@ def collect_results(
                     base_path,
                     dataset,
                     'results',
-                    chunker,
+                    chunker_dir_name,
                     f'{encoder}-{model}',
                     metric_file
                 )
 
                 score = parse_eval_file(eval_path)
                 if score is not None:
-                    results[(model, chunker, dataset)] = score
+                    results[(model, chunker_dir_name, dataset)] = score
 
     return results
 
@@ -373,9 +391,10 @@ def main():
     CHUNKERS = [
         'ParagraphChunker',
         'SentenceChunker',
-        'FixedSizeChunker',
+        'FixedSizeChunker-256',
         'SemanticChunker',
-        'LumberChunker',
+        'LumberChunker-Gemini',
+        'LumberChunker-GPT',
         'Proposition',
     ]
 

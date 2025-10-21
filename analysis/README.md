@@ -24,8 +24,8 @@ python analysis/base_result_table_creation.py
 - Edit the `main()` function to customize:
   - `BASE_PATH`: Path to evaluation results
   - `DATASETS`: List of datasets to include
-  - `MODELS`: List of embedding models
-- `CHUNKERS`: List of chunking strategies
+- `MODELS`: List of embedding models
+- `CHUNKERS`: List of chunking strategies (e.g., `FixedSizeChunker-256`, `LumberChunker-GPT`, `LumberChunker-Gemini`)
 - `ENCODER`: Encoder type (RegularEncoder/LateEncoder)
 
 ### research_question_plots.py
