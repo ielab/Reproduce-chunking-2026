@@ -200,8 +200,11 @@ class GeminiGenerator(BaseGenerator):
                               prompts: List[str],
                               system_instruction: str,
                               temperature: float = 0,
+                              top_k: int = None,
+                              top_p: float = None,
                               structured_output: dict = None,
                               max_workers: Optional[int] = None,
+                              seed: int = 42,
                               ):
 
         if not prompts:
@@ -210,7 +213,13 @@ class GeminiGenerator(BaseGenerator):
         # Build generation config
         generation_config = {
             "temperature": temperature,
+            "seed": seed
         }
+        if top_k is not None:
+            generation_config["top_k"] = top_k
+        if top_p is not None:
+            generation_config["top_p"] = top_p
+
         if structured_output:
             generation_config.update(structured_output)
 
@@ -276,7 +285,8 @@ class GeminiGenerator(BaseGenerator):
                 top_k=top_k,
                 top_p=top_p,
                 display_name=display_name,
-                structured_output=structured_output_dict
+                structured_output=structured_output_dict,
+                seed=42
             )
 
             batch_job = self.wait_for_completion(batch_job, poll_interval=30)
@@ -294,8 +304,12 @@ class GeminiGenerator(BaseGenerator):
                 prompts=prompts,
                 system_instruction=system_instruction,
                 temperature=temperature,
+                top_k=top_k,
+                top_p=top_p,
                 structured_output=structured_output_dict,
-                max_workers=max_workers)
+                max_workers=max_workers,
+                seed=42
+            )
 
             result["responses"] = responses
             result["status"] = "JOB_STATE_SUCCEEDED"
@@ -307,13 +321,22 @@ if __name__ == "__main__":
 
     gemini = GeminiGenerator(model="gemini-2.5-flash")
 
-    p_s = ["I'm not saying I don't like the idea of on-the-job training too, but you can't expect the company to do that. Training workers is not their job - they're building software. Perhaps educational systems in the U.S. (or their students) should worry a little about getting marketable skills in exchange for their massive investment in education, rather than getting out with thousands in student debt and then complaining that they aren't qualified to do anything."]
+    p_s = ["I'm not saying I don't like the idea of on-the-job training too, but you can't expect the company to do that. "
+           "Training workers is not their job - they're building software. Perhaps educational systems in the U.S. "] * 10
     ins = """Decompose the "Content" into clear statements, ensuring they are interpretable out of context.
         1. Split compound sentence into simple sentences. Maintain the original phrasing from the input whenever possible.
         2. For any named entity that is accompanied by additional descriptive information, separate this information into its own distinct statement.  
         3. Decontextualize the statement by adding necessary modifier to nouns or entire sentences and replacing pronouns (e.g., "it", "he", "she", "they", "this", "that") with the full name of the entities they refer to.
     """
 
-    result = gemini.generate(prompts=p_s, system_instruction=ins, structured_output='array', in_batch=True)
+    result = gemini.generate(
+        prompts=p_s,
+        system_instruction=ins,
+        structured_output='array',
+        in_batch=False,
+        temperature=0,
+        top_k=1,
+        max_workers = 4
+    )
 
     print(result)

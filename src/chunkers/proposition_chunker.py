@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Set
 from itertools import count
 from dataclasses import dataclass
 import re
@@ -8,6 +8,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 import pandas as pd
 import json
+import gzip
+import os
 
 from src.chunkers.base_chunker import BaseChunker
 from src.types import Document, Chunk
@@ -45,7 +47,6 @@ class PropositionChunker(BaseChunker):
                  gen_backbone: str,
                  batch_size: int = 20000,
                  chunk_sink_path: str | None = None,
-                 llm_workers: int = 4,
                  **kwargs):
 
         self.gen_backbone = gen_backbone
@@ -56,16 +57,75 @@ class PropositionChunker(BaseChunker):
 
         self.batch_size = batch_size
         self.system_instruction = system_prompt
-        self.num_workers = llm_workers
 
         self._sink = JsonlSink(chunk_sink_path) if chunk_sink_path else None
         self._sample = kwargs.get("sample")
 
-        self._failed_batches_data = []
-        self.failed_batches_log_path = chunk_sink_path.replace("chunks.jsonl", "_failed_batches.json")
-
-        # Thread-safe lock for sink writes
+        # Thread-safe lock for sink writes and doc_id tracking
         self._write_lock = threading.Lock()
+
+        def _safe_int(value, default):
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return default
+
+        # Resume functionality
+        def _safe_bool(value, default):
+            if value is None:
+                return default
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, str):
+                lower = value.strip().lower()
+                if lower in {"true", "1", "yes", "y"}:
+                    return True
+                if lower in {"false", "0", "no", "n"}:
+                    return False
+            return default
+
+        self.num_parallel_batches = _safe_int(kwargs.get("num_parallel_batches"), 4)
+
+        self.resume = _safe_bool(kwargs.get("resume"), False)
+        self.processed_doc_ids: Set[str] = set()
+
+        if self.resume and chunk_sink_path:
+            if os.path.exists(chunk_sink_path):
+                self.processed_doc_ids = self._load_processed_doc_ids(chunk_sink_path)
+                print(f"[PropositionChunker] Loaded {len(self.processed_doc_ids)} completed documents for resume.")
+            else:
+                print(
+                    f"[PropositionChunker] Resume requested but no existing chunk file at {chunk_sink_path}. Starting fresh.")
+                self.resume = False
+
+    def _load_processed_doc_ids(self, path: str) -> Set[str]:
+        """Load processed document IDs from existing chunk file."""
+        doc_ids: Set[str] = set()
+
+        if not os.path.exists(path):
+            return doc_ids
+
+        opener = gzip.open if path.endswith(".gz") else open
+
+        try:
+            with opener(path, "rt", encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        record = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    doc_id = record.get("doc_id")
+                    if doc_id is not None:
+                        doc_ids.add(doc_id)
+        except FileNotFoundError:
+            return set()
+        except Exception as exc:
+            print(f"[PropositionChunker] Failed to read existing chunks for resume: {exc}")
+
+        return doc_ids
 
     @staticmethod
     def _segment_paragraph(text: str) -> List[str]:
@@ -147,22 +207,6 @@ class PropositionChunker(BaseChunker):
             print(f"Error processing batch: {str(e)}\n{traceback.format_exc()}")
             return []
 
-    def _save_failed_batches(self, failed_batch_indices: List[int]):
-        """Save failed batch information to a JSON file for later retry."""
-
-        failure_record = {
-            'timestamp': str(pd.Timestamp.now()),
-            'batch_size': self.batch_size,
-            'failed_batch_indices': failed_batch_indices,
-            'detailed_failures': self._failed_batches_data,
-            'total_failed_docs': sum(d['doc_count'] for d in self._failed_batches_data)
-        }
-
-        with open(self.failed_batches_log_path, 'w') as f:
-            json.dump(failure_record, f, indent=2)
-
-        print(f"Failed batch information saved to {self.failed_batches_log_path}")
-
     def chunk(self, raw_docs: List[Document]) -> List[Chunk]:
         """
         Main chunking method using ThreadPoolExecutor for parallel processing.
@@ -172,6 +216,17 @@ class PropositionChunker(BaseChunker):
 
         if self._sample is not None:
             raw_docs = raw_docs[:self._sample]
+
+        # Resume functionality: filter out already-processed documents
+        if self.resume and self.processed_doc_ids:
+            original_count = len(raw_docs)
+            raw_docs = [doc for doc in raw_docs if doc.doc_id not in self.processed_doc_ids]
+            skipped = original_count - len(raw_docs)
+            if skipped > 0:
+                print(f"[PropositionChunker] Skipping {skipped} documents already processed.")
+            if not raw_docs:
+                print("[PropositionChunker] No remaining documents to process. Resume finished.")
+                return chunks
 
         # Split documents into batches
         batches = [raw_docs[i:i + self.batch_size]
@@ -185,13 +240,12 @@ class PropositionChunker(BaseChunker):
         else:
             batches_to_process = list(enumerate(batches))
 
-        print(f"Processing {len(raw_docs)} documents in {len(batches_to_process)} batches using {self.num_workers} threads")
-
-
+        print(
+            f"Processing {len(raw_docs)} documents in {len(batches)} batches using {self.num_parallel_batches} parallel threads")
 
         try:
             # Process batches with threads
-            with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
+            with ThreadPoolExecutor(max_workers=self.num_parallel_batches) as executor:
                 # Submit all batches
                 future_to_batch = {
                     executor.submit(self.process_batch, batch): idx
@@ -208,6 +262,9 @@ class PropositionChunker(BaseChunker):
                             if self._sink and batch_chunks:
                                 with self._write_lock:
                                     self._sink.write_batch(batch_chunks)
+                                    # Update processed doc IDs for resume functionality
+                                    if self.resume:
+                                        self.processed_doc_ids.update(chunk.doc_id for chunk in batch_chunks)
                                     print(f"Batch {batch_idx}: Saved {len(batch_chunks)} chunks")
 
                             chunks.extend(batch_chunks)
@@ -216,21 +273,10 @@ class PropositionChunker(BaseChunker):
                         except Exception as e:
                             print(f"Error retrieving results for batch {batch_idx}: {e}")
                             failed_batches.append(batch_idx)
-
-                            batch_docs = batches[batch_idx] if batch_idx < len(batches) else []
-                            self._failed_batches_data.append({
-                                'batch_idx': batch_idx,
-                                'error': str(e),
-                                'doc_ids': [doc.doc_id for doc in batch_docs],
-                                'doc_count': len(batch_docs)
-                            })
-
                             pbar.update(1)
+
             if failed_batches:
                 print(f"WARNING: {len(failed_batches)} batches failed: {failed_batches}")
-
-                if self.failed_batches_log_path:
-                    self._save_failed_batches(failed_batches)
 
             return chunks
         finally:
@@ -257,18 +303,19 @@ if __name__ == "__main__":
             doc_id=f"doc_{i}",
             text="please call the model, then you will get the llm result"
         )
-    for i in range(100, 200)
+        for i in range(100, 200)
     ]
 
     test_docs = test_docs + docs2
 
-    # Create chunker
+    # Create chunker with resume enabled
     chunker = PropositionChunker(
         gen_backbone="gemini",
         batch_size=100,
         llm_workers=8,
         generative_model_name="gemini-2.5-flash-lite",
-        chunk_sink_path = "llm_multi_processing.jsonl"
+        chunk_sink_path="llm_multi_processing.jsonl",
+        resume=True  # Enable resume functionality
     )
 
     # Process
