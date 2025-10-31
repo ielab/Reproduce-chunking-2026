@@ -18,7 +18,7 @@ class FixedSizeChunker(BaseChunker):
                  **kwargs
                  ):
 
-        tokenizer_name = kwargs.get("tokenizer_name") or 'Qwen/Qwen3-Embedding-0.6B'
+        tokenizer_name = kwargs.get("tokenizer_name") or "jinaai/jina-embeddings-v2-base-en"
 
         # if tokenizer_name is not None:
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, trust_remote_code=True)

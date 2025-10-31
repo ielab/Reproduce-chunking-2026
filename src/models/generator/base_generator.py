@@ -11,6 +11,8 @@ class BaseGenerator(ABC):
                  prompts: List[str],
                  system_instruction: str,
                  temperature: float = 0,
+                 top_k: int = None,
+                 top_p: float = None,
                  display_name: str = None,
                  in_batch=True,
                  structured_output: Optional[str] = None,

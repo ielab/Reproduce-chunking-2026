@@ -30,12 +30,24 @@ class JsonlSink:
             self.f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
         self.f.flush()
+        os.fsync(self.f.fileno())
 
     def close(self):
-        try:
-            self.f.close()
-        except:
-            pass
+        if hasattr(self, 'f') and self.f:
+            try:
+                self.f.flush()
+                if hasattr(self.f, 'fileno'):
+                    os.fsync(self.f.fileno())
+                self.f.close()
+            except Exception as e:
+                print(f"Error closing sink: {e}")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
 
 
 class PickleSink:
