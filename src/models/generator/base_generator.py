@@ -9,7 +9,7 @@ class BaseGenerator(ABC):
     @abstractmethod
     def generate(self,
                  prompts: List[str],
-                 system_instruction: str,
+                 system_instruction: str=None,
                  temperature: float = 0,
                  top_k: int = None,
                  top_p: float = None,

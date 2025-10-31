@@ -186,13 +186,19 @@ class GeminiGenerator(BaseGenerator):
                     prompt: str,
                     system_instruction: str,
                     generation_config: Dict[str, Any]) -> Optional[str]:
-        response = self.client.models.generate_content(
-            model=self.model,
-            contents=prompt,
-            config={
+
+        if system_instruction:
+            config = {
                 "system_instruction": system_instruction,
                 **generation_config
             }
+        else:
+            config = generation_config
+
+        response = self.client.models.generate_content(
+            model=self.model,
+            contents=prompt,
+            config=config
         )
         return response.text
 
@@ -219,6 +225,8 @@ class GeminiGenerator(BaseGenerator):
             generation_config["top_k"] = top_k
         if top_p is not None:
             generation_config["top_p"] = top_p
+
+        print(f"Generation configuration: {generation_config}, System instruction: {system_instruction}")
 
         if structured_output:
             generation_config.update(structured_output)
@@ -254,7 +262,7 @@ class GeminiGenerator(BaseGenerator):
 
     def generate(self,
                  prompts: List[str],
-                 system_instruction: str,
+                 system_instruction: str=None,
                  temperature:float = 0,
                  top_k:int = None,
                  top_p:float = None,
@@ -323,20 +331,25 @@ if __name__ == "__main__":
 
     p_s = ["I'm not saying I don't like the idea of on-the-job training too, but you can't expect the company to do that. "
            "Training workers is not their job - they're building software. Perhaps educational systems in the U.S. "] * 10
-    ins = """Decompose the "Content" into clear statements, ensuring they are interpretable out of context.
-        1. Split compound sentence into simple sentences. Maintain the original phrasing from the input whenever possible.
-        2. For any named entity that is accompanied by additional descriptive information, separate this information into its own distinct statement.  
-        3. Decontextualize the statement by adding necessary modifier to nouns or entire sentences and replacing pronouns (e.g., "it", "he", "she", "they", "this", "that") with the full name of the entities they refer to.
-    """
+    ins = """Decompose the "Content" into clear and simple propositions, ensuring they are interpretable out of context.
+1. Split compound sentence into simple sentences. Maintain the original phrasing from the input whenever possible.
+2. For any named entity that is accompanied by additional descriptive information, separate this information into its own distinct proposition.
+3. Decontextualize the proposition by adding necessary modifier to nouns or entire sentences and replacing pronouns (e.g., "it", "he", "she", "they", "this", "that") with the full name of the entities they refer to.
 
-    result = gemini.generate(
-        prompts=p_s,
-        system_instruction=ins,
-        structured_output='array',
-        in_batch=False,
-        temperature=0,
-        top_k=1,
-        max_workers = 4
-    )
+Input: Title: Eostre. Section: Theories and interpretations, Connection to Easter Hares. Content: The earliest evidence for the Easter Hare (Osterhase) was recorded in south-west Germany in 1678 by the professor of medicine Georg Franck von Franckenau, but it remained unknown in other parts of Germany until the 18th century. Scholar Richard Sermon writes that "hares were frequently seen in gardens in spring, and thus may have served as a convenient explanation for the origin of the colored eggs hidden there for children. Alternatively, there is a European tradition that hares laid eggs, since a hare’s scratch or form and a lapwing’s nest look very similar, and both occur on grassland and are first seen in the spring. In the nineteenth century the influence of Easter cards, toys, and books was to make the Easter Hare/Rabbit popular throughout Europe. German immigrants then exported the custom to Britain and America where it evolved into the Easter Bunny."
+Output: [ "The earliest evidence for the Easter Hare was recorded in south-west Germany in 1678 by Georg Franck von Franckenau.", "Georg Franck von Franckenau was a professor of medicine.", "The evidence for the Easter Hare remained unknown in other parts of Germany until the 18th century.", "Richard Sermon was a scholar.", "Richard Sermon writes a hypothesis about the possible explanation for the connection between hares and the tradition during Easter", "Hares were frequently seen in gardens in spring.", "Hares may have served as a convenient explanation for the origin of the colored eggs hidden in gardens for children.", "There is a European tradition that hares laid eggs.", "A hare’s scratch or form and a lapwing’s nest look very similar.", "Both hares and lapwing’s nests occur on grassland and are first seen in the spring.", "In the nineteenth century the influence of Easter cards, toys, and books was to make the Easter Hare/Rabbit popular throughout Europe.", "German immigrants exported the custom of the Easter Hare/Rabbit to Britain and America.", "The custom of the Easter Hare/Rabbit evolved into the Easter Bunny in Britain and America." ]"""
 
-    print(result)
+    new_prompts = [ins + "\n\n" + f"Input: {p}" + "\nOutput:" for p in p_s]
+
+    # result = gemini.generate(
+    #     prompts=new_prompts,
+    #     structured_output='array',
+    #     in_batch=False,
+    #     temperature=0,
+    #     top_k=1,
+    #     max_workers = 4
+    # )
+    #
+    # print(result)
+
+    print(new_prompts[0])
