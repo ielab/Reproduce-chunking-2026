@@ -226,7 +226,7 @@ class GeminiGenerator(BaseGenerator):
         if top_p is not None:
             generation_config["top_p"] = top_p
 
-        print(f"Generation configuration: {generation_config}, System instruction: {system_instruction}")
+        # print(f"Generation configuration: {generation_config}, System instruction: {system_instruction}")
 
         if structured_output:
             generation_config.update(structured_output)
