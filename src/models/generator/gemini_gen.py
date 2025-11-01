@@ -234,30 +234,39 @@ class GeminiGenerator(BaseGenerator):
         max_workers = max_workers or 1
         responses: List[Optional[str]] = [None] * len(prompts)
 
-        if max_workers <= 1:
-            for idx, prompt in enumerate(prompts):
-                try:
-                    responses[idx] = self._call_model(prompt, system_instruction, generation_config)
-                except Exception as e:
-                    print(f"Error generating response: {e}")
-                    responses[idx] = None
-            return responses
-
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_idx = {
-                executor.submit(self._call_model, prompt, system_instruction, generation_config): idx
-                for idx, prompt in enumerate(prompts)
-            }
-
-            for future in as_completed(future_to_idx):
-                idx = future_to_idx[future]
-                try:
-                    responses[idx] = future.result()
-                except Exception as e:
-                    print(f"Error generating response: {e}")
-                    responses[idx] = None
-
+        for idx, prompt in enumerate(prompts):
+            try:
+                responses[idx] = self._call_model(prompt, system_instruction, generation_config)
+            except Exception as e:
+                print(f"Error generating response: {e}")
+                responses[idx] = None
         return responses
+
+
+        # if max_workers <= 1:
+        #     for idx, prompt in enumerate(prompts):
+        #         try:
+        #             responses[idx] = self._call_model(prompt, system_instruction, generation_config)
+        #         except Exception as e:
+        #             print(f"Error generating response: {e}")
+        #             responses[idx] = None
+        #     return responses
+        #
+        # with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        #     future_to_idx = {
+        #         executor.submit(self._call_model, prompt, system_instruction, generation_config): idx
+        #         for idx, prompt in enumerate(prompts)
+        #     }
+        #
+        #     for future in as_completed(future_to_idx):
+        #         idx = future_to_idx[future]
+        #         try:
+        #             responses[idx] = future.result()
+        #         except Exception as e:
+        #             print(f"Error generating response: {e}")
+        #             responses[idx] = None
+        #
+        # return responses
 
 
     def generate(self,
