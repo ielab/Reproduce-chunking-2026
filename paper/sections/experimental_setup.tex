@@ -13,13 +13,13 @@ For \textbf{semantically-informed and LLM-guided strategies}, the \textbf{Semant
 
 To evaluate the effectiveness of different segmentation strategies and embedding paradigms, we select the following four models:
 \begin{itemize}
-	\item \textbf{jina-embeddings-v2-small-en(Jina-v2)~\cite{}}: A lightweight model optimized for efficiency while maintaining competitive performance.
+	\item \textbf{jina-embeddings-v2-small-en(Jina-v2)~\cite{jina2}}: A lightweight model optimized for efficiency while maintaining competitive performance.
 	
-	\item \textbf{jina-embeddings-v3(Jina-v3)~\cite{}}: An updated version with improved multilingual capabilities and semantic understanding.
+	\item \textbf{jina-embeddings-v3(Jina-v3)~\cite{jina3}}: An updated version with improved multilingual capabilities and semantic understanding.
 	
-	\item \textbf{nomic-embed-text-v1(Normic-v1)~\cite{}}: A model designed for high-quality dense retrieval with strong performance on diverse benchmarks.
+	\item \textbf{nomic-embed-text-v1(Normic-v1)~\cite{nomic}}: A model designed for high-quality dense retrieval with strong performance on diverse benchmarks.
 	
-	\item \textbf{multilingual-e5-base(E5-base)~\cite{}}: A multilingual model using mean pooling for text representation.
+	\item \textbf{multilingual-e5-base(E5-base)~\cite{e5}}: A multilingual model using mean pooling for text representation.
 \end{itemize}
 
 While the first three models were evaluated in the original LateChunking work~\cite{latechunking2024}, we additionally include multilingual-e5-base to test the robustness of our approach. Since LateChunking requires models that use average pooling for representation, our selection was constrained to the highest-performing embedding models on the MTEB leaderboard that employ mean pooling for text representation.
@@ -34,7 +34,7 @@ We evaluate in-document retrieval using the \textbf{Guten-\\QA} dataset~\cite{du
 
 The ground truth in GutenQA is annotated at the paragraph level. Since chunks may contain partial paragraphs or span multiple paragraphs, we consider a retrieved chunk as relevant if it overlaps with any ground-truth paragraph. We evaluate retrieval performance by examining whether the top-n retrieved chunks contain the relevant information.
 
-For evaluation, we report DCG@10 (Discounted Cumulative Gain at rank 10), following exisiting work from LumberChunker~\cite{}, calculated as:
+For evaluation, we report DCG@10 (Discounted Cumulative Gain at rank 10), following exisiting work from LumberChunker~\cite{lumber}, calculated as:
 $$ \mathrm{DCG@10} = \sum_{i=1}^{10} \frac{2^{\mathrm{rel}_i} - 1}{\log_2(i+1)} $$
 where $\mathrm{rel}_i$ is the relevance score of the result at rank $i$.
 
