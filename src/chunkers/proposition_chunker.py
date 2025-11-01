@@ -90,6 +90,13 @@ class PropositionChunker(BaseChunker):
 
         self.num_parallel_batches = _safe_int(kwargs.get("num_parallel_batches"), 4)
 
+        workers_candidate = (
+                kwargs.get("llm_workers")
+                or kwargs.get("num_workers")
+                or kwargs.get("llm_max_workers")
+        )
+        self.llm_max_workers = max(_safe_int(workers_candidate, 1), 1)
+
         self.resume = _safe_bool(kwargs.get("resume"), False)
         self.processed_doc_ids: Set[str] = set()
 
@@ -101,6 +108,25 @@ class PropositionChunker(BaseChunker):
                 print(
                     f"[PropositionChunker] Resume requested but no existing chunk file at {chunk_sink_path}. Starting fresh.")
                 self.resume = False
+
+    @staticmethod
+    def _segment_sentence(text: str) -> List[str]:
+        """Segment text into sentences using regex pattern."""
+
+        sentence_pattern = re.compile(
+            r"(?<!\w\.\w.)(?<![A-Z]\.)(?<![A-Z][a-z]\.)(?<! [a-z]\.)(?<![A-Z][a-z][a-z]\.)("
+            r"?<=\.|\?|!)\"*\s*\s*(?:\W*)([A-Z])"
+        )
+
+        find_list = sentence_pattern.split(text)
+
+        sentences = find_list[:1]
+        for ids in range(1, len(find_list), 2):
+            sentences.append(find_list[ids] + find_list[ids + 1])
+
+        sentences = [s for s in sentences if s.strip()]
+
+        return sentences
 
     def _load_processed_doc_ids(self, path: str) -> Set[str]:
         """Load processed document IDs from existing chunk file."""
@@ -151,6 +177,8 @@ class PropositionChunker(BaseChunker):
 
             for doc in batch_docs:
                 paragraphs = self._segment_paragraph(doc.text)
+                if not paragraphs:
+                    print(f"⚠️ Document {doc.doc_id} has no paragraphs (empty/whitespace)")
                 tracker_dict[doc.doc_id] = DocumentGenTracker(
                     doc_id=doc.doc_id,
                     paragraphs=paragraphs,
@@ -159,6 +187,7 @@ class PropositionChunker(BaseChunker):
 
             # Request LLM
             prompts = []
+            paragraph_list = []
             doc_id_list = []
             # pack prompt
             for doc_id, tracker in tracker_dict.items():
@@ -166,6 +195,8 @@ class PropositionChunker(BaseChunker):
                     new_prompt = self.task_instruction + "\n\n" + f"Input: {paragraph}" + "\nOutput:"
                     prompts.append(new_prompt)
                     doc_id_list.append(doc_id)
+                    paragraph_list.append(paragraph)
+
 
             in_batch = False if len(prompts) <= 10 else True
 
@@ -175,13 +206,14 @@ class PropositionChunker(BaseChunker):
                 top_k=1,
                 display_name=f"Generate propositions",
                 in_batch=in_batch,
-                structured_output='array'
+                structured_output='array',
+                max_workers=self.llm_max_workers
             )
 
             responses = llm_output['responses']
 
             # Process responses
-            for doc_id, response in zip(doc_id_list, responses):
+            for doc_id, response, paragraph in zip(doc_id_list, responses, paragraph_list):
                 if response:
                     try:
                         if isinstance(response, str):
@@ -190,7 +222,15 @@ class PropositionChunker(BaseChunker):
                             propositions = response
                         tracker_dict[doc_id].propositions.extend(propositions)
                     except Exception as e:
-                        print(f"LLM response parsing error for {doc_id}: {e}")
+                        # print(f"LLM response parsing error for {doc_id}: {e}")
+                        # print(f"Falling back to sentence segmentation for this paragraph")
+                        sentences = self._segment_sentence(paragraph)
+                        tracker_dict[doc_id].propositions.extend(sentences)
+                else:
+                    sentences = self._segment_sentence(paragraph)
+                    tracker_dict[doc_id].propositions.extend(sentences)
+
+
 
             # Create chunks
             chunks: List[Chunk] = []
@@ -232,20 +272,47 @@ class PropositionChunker(BaseChunker):
                 print("[PropositionChunker] No remaining documents to process. Resume finished.")
                 return chunks
 
-        # Split documents into batches
-        batches = [raw_docs[i:i + self.batch_size]
-                   for i in range(0, len(raw_docs), self.batch_size)]
+        # Separate empty and non-empty documents
+        empty_docs = [doc for doc in raw_docs if not doc.text or not doc.text.strip()]
+        non_empty_docs = [doc for doc in raw_docs if doc.text and doc.text.strip()]
 
-        retry_batch_indices = []
-        # If retrying, only process specified batches
-        if retry_batch_indices:
-            print(f"Retrying {len(retry_batch_indices)} failed batches: {retry_batch_indices}")
-            batches_to_process = [(idx, batches[idx]) for idx in retry_batch_indices if idx < len(batches)]
-        else:
-            batches_to_process = list(enumerate(batches))
+        if empty_docs:
+            print(f"[PropositionChunker] Found {len(empty_docs)} documents with empty text. Creating empty chunks.")
+
+            # Create empty chunks for empty documents
+            empty_chunks = []
+            for doc in empty_docs:
+                chunk = Chunk(
+                    doc_id=doc.doc_id,
+                    chunk_id=f"{doc.doc_id}-Chunk-0",
+                    text=""
+                )
+                empty_chunks.append(chunk)
+
+            # Save empty chunks immediately
+            if self._sink and empty_chunks:
+                with self._write_lock:
+                    self._sink.write_batch(empty_chunks)
+                    if self.resume:
+                        self.processed_doc_ids.update(chunk.doc_id for chunk in empty_chunks)
+                    print(f"Saved {len(empty_chunks)} empty chunks")
+
+            chunks.extend(empty_chunks)
+
+        # Process only non-empty documents
+        if not non_empty_docs:
+            print("[PropositionChunker] No non-empty documents to process.")
+            return chunks
+
+
+        # Split documents into batches
+        batches = [non_empty_docs[i:i + self.batch_size]
+                   for i in range(0, len(non_empty_docs), self.batch_size)]
+
+        batches_to_process = list(enumerate(batches))
 
         print(
-            f"Processing {len(raw_docs)} documents in {len(batches)} batches using {self.num_parallel_batches} parallel threads")
+            f"Processing {len(non_empty_docs)} documents in {len(batches)} batches using {self.num_parallel_batches} parallel threads")
 
         try:
             # Process batches with threads
