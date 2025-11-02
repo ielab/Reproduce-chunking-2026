@@ -2,7 +2,7 @@ import gzip
 import json
 import os
 import re
-from typing import List, Dict, Union, Set
+from typing import List, Dict, Set, Literal
 from itertools import count
 from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -17,7 +17,7 @@ from src.registry import CHUNKER_REG, GENERATOR_REG
 from src.io.sink import JsonlSink
 from src.models.generator.base_generator import BaseGenerator
 
-paragraph_task_instruction = """Prompt: You will receive as input an english document with paragraphs identified by 'ID XXXX: <text>'.
+paragraph_task_instruction = """You will receive as input an english document with paragraphs identified by 'ID XXXX: <text>'.
 
 Task: Find the first paragraph (not the first one) where the content clearly changes compared to the previous paragraphs.
 
@@ -25,7 +25,7 @@ Output: Return the ID of the paragraph with the content shift as in the exemplif
 
 Additional Considerations: Avoid very long groups of paragraphs. Aim for a good balance between identifying content shifts and keeping groups manageable."""
 
-sentence_task_instruction = """Prompt: You will receive as input an english document with sentences identified by 'ID XXXX: <text>'.
+sentence_task_instruction = """You will receive as input an english document with sentences identified by 'ID XXXX: <text>'.
 
 Task: Find the first sentence (not the first one) where the content clearly changes compared to the previous sentences.
 
@@ -37,10 +37,10 @@ Additional Considerations: Avoid very long groups of sentences. Aim for a good b
 @dataclass
 class DocumentSplitTracker:
     doc_id: str
-    paragraphs: List[str]
-    prefixed_paragraphs: List[str]
+    segments: List[str]
+    prefixed_segments: List[str]
     splitter_list: List[int] = field(default_factory=lambda: [0])
-    processed_paragraphs: int = 0
+    processed_segments: int = 0
 
 
 @CHUNKER_REG.register("LumberChunker")
@@ -54,7 +54,7 @@ class LumberChunker(BaseChunker):
 
     def __init__(self,
                  gen_backbone: str,
-                 granularity: str = Union["sentence", "paragraph"],
+                 granularity: Literal["sentence", "paragraph"] = "sentence",
                  batch_size: int = 20000,
                  chunk_sink_path: str | None = None,
                  **kwargs
@@ -132,6 +132,8 @@ class LumberChunker(BaseChunker):
 
         self.use_batch_api = _safe_bool(kwargs.get("use_batch_api"), True)
         self.show_paragraph_progress = _safe_bool(kwargs.get("show_paragraph_progress"), True)
+        # self.batch_api_threshold = _safe_int(kwargs.get("batch_api_threshold"), 10)
+        self.batch_api_threshold = 80
 
         # Multi-threading configuration
         self.num_parallel_batches = _safe_int(kwargs.get("num_parallel_batches"), 4)
@@ -201,7 +203,7 @@ class LumberChunker(BaseChunker):
 
     def add_prefix(self, text_list: List[str]) -> List[str]:
         """
-        add prefix for each paragraph/sentence
+        add prefix for each segment (paragraph or sentence)
         """
 
         prefix_text_list = []
@@ -237,31 +239,40 @@ class LumberChunker(BaseChunker):
                                generation_model: BaseGenerator,
                                tracker_dict: Dict[str, DocumentSplitTracker],
                                still_active_id_list: List,
-                               paragraph_pbar=None):
+                               segment_pbar=None):
 
         prompts = []
         doc_order = []
+        seg_list_lengths = []  # Track segment list lengths for each document
 
         for doc_id in still_active_id_list:
             tracker = tracker_dict[doc_id]
 
             splitter = tracker.splitter_list[-1]
-            seg_list = self._segment_text_list(tracker.prefixed_paragraphs[splitter:], max_tokens=self.max_tokens)
+            seg_list = self._segment_text_list(tracker.prefixed_segments[splitter:], max_tokens=self.max_tokens)
+
+            # If only one segment fits, advance by 1 (nothing to compare)
+            if len(seg_list) == 1:
+                next_boundary = splitter + 1
+                if next_boundary <= len(tracker.segments):
+                    tracker.splitter_list.append(next_boundary)
+                    if segment_pbar:
+                        tracker.processed_segments += 1
+                        segment_pbar.update(1)
+                continue
 
             prompt = self.task_instruction + '\nDocument:\n' + '\n'.join(seg_list)
 
             prompts.append(prompt)
             doc_order.append(doc_id)
+            seg_list_lengths.append(len(seg_list))
+
+        if not prompts:
+            return
 
         try:
-
-            doc_responses = []
-
-            if not prompts:
-                return
-
-            # if self.use_batch_api:
-            in_batch = False if len(prompts) <= 10 else True
+            # Determine if batch API should be used
+            in_batch = len(prompts) > self.batch_api_threshold
 
             llm_output = generation_model.generate(
                 prompts=prompts,
@@ -272,63 +283,68 @@ class LumberChunker(BaseChunker):
             )
             responses = llm_output["responses"]
 
-            doc_responses.extend(zip(doc_order, responses))
+            # Validate response count matches prompt count
+            if len(responses) != len(prompts):
+                print(f"Warning: Expected {len(prompts)} responses but got {len(responses)}")
+                # Pad with None if we got fewer responses
+                responses = [None] * len(prompts)
 
-            # else:
-            #     batch_size = self.llm_prompt_batch_size or len(prompts)
-            #
-            #     for start_idx in range(0, len(prompts), batch_size):
-            #         end_idx = start_idx + batch_size
-            #         batch_prompts = prompts[start_idx:end_idx]
-            #         batch_doc_ids = doc_order[start_idx:end_idx]
-            #
-            #         llm_output = generation_model.generate(
-            #             prompts=batch_prompts,
-            #             temperature=0,
-            #             top_k=1,
-            #             display_name=f"Generate lumber chunk",
-            #             in_batch=False,
-            #             max_workers=self.llm_max_workers
-            #         )
-            #         responses = llm_output["responses"]
-            #
-            #         if len(responses) != len(batch_doc_ids):
-            #             responses = (responses or []) + [None] * (len(batch_doc_ids) - len(responses or []))
-            #             responses = responses[:len(batch_doc_ids)]
-            #
-            #         doc_responses.extend(zip(batch_doc_ids, responses))
+            doc_responses = list(zip(doc_order, responses, seg_list_lengths))
 
         except Exception as e:
             print(f"Error in generating llm: {e}")
-            doc_responses = [(doc_id, None) for doc_id in doc_order]
+            doc_responses = [(doc_id, None, seg_len) for doc_id, seg_len in zip(doc_order, seg_list_lengths)]
 
-        # clip the result
+        # Process the results
+        for doc_id, response, seg_list_length in doc_responses:
+            tracker = tracker_dict[doc_id]
+            current_splitter = tracker.splitter_list[-1]
 
-        for doc_id, response in doc_responses:
+            # Try to extract valid boundary from response
+            valid_boundary = None
+            error_msg = None
 
-            if response:
-                match = re.search(r"Answer: ID (\d+)", response)
-                if match:
-
-                    next_boundary = int(match.group(1))
-                    tracker = tracker_dict[doc_id]
-                    tracker.splitter_list.append(next_boundary)
-
-                    if paragraph_pbar:
-                        total_paragraphs = len(tracker.paragraphs)
-                        bounded_boundary = min(next_boundary, total_paragraphs)
-                        progress_delta = max(bounded_boundary - tracker.processed_paragraphs, 0)
-                        if progress_delta:
-                            tracker.processed_paragraphs += progress_delta
-                            paragraph_pbar.update(progress_delta)
+            if not response:
+                error_msg = "no answer"
             else:
-                print(f"doc_id: {doc_id} no answer")
+                match = re.search(r"Answer: ID (\d+)", response)
+                if not match:
+                    error_msg = "no valid ID match in response"
+                else:
+                    next_boundary = int(match.group(1))
+                    if 0 < next_boundary <= len(tracker.segments):
+                        valid_boundary = next_boundary
+                    else:
+                        error_msg = f"invalid boundary {next_boundary} (max: {len(tracker.segments)})"
+
+            # Apply valid boundary or fallback
+            if valid_boundary is not None:
+                tracker.splitter_list.append(valid_boundary)
+                if segment_pbar:
+                    bounded_boundary = min(valid_boundary, len(tracker.segments))
+                    progress_delta = max(bounded_boundary - tracker.processed_segments, 0)
+                    if progress_delta:
+                        tracker.processed_segments += progress_delta
+                        segment_pbar.update(progress_delta)
+            else:
+                print(f"doc_id: {doc_id} {error_msg}")
+                fallback_boundary = current_splitter + seg_list_length
+                if fallback_boundary <= len(tracker.segments):
+                    tracker.splitter_list.append(fallback_boundary)
+                    if segment_pbar:
+                        progress_delta = seg_list_length
+                        tracker.processed_segments += progress_delta
+                        segment_pbar.update(progress_delta)
+                else:
+                    print(f"fallback_boundary: {fallback_boundary}, length_segments: {len(tracker.segments)}")
 
     def lumber_chunking_pipeline(self, batch_document: List[Document], batch_idx: int = 0) -> List[Chunk]:
         """
         Process a batch of documents. This method runs in a thread.
         Each thread creates its own generator instance to avoid sharing issues.
         """
+
+        segment_pbar = None
 
         try:
             # Create generator instance for this thread
@@ -338,84 +354,91 @@ class LumberChunker(BaseChunker):
             tracker_dict: Dict[str, DocumentSplitTracker] = {}
 
             for doc in batch_document:
-                paragraphs = self.segment_function(doc.text)
+                segments = self.segment_function(doc.text)
+
+                # Skip documents with no segments
+                if not segments:
+                    print(f"Warning: Document {doc.doc_id} produced no segments, skipping")
+                    continue
 
                 tracker_dict[doc.doc_id] = DocumentSplitTracker(
                     doc_id=doc.doc_id,
-                    paragraphs=paragraphs,
-                    prefixed_paragraphs=self.add_prefix(paragraphs),
+                    segments=segments,
+                    prefixed_segments=self.add_prefix(segments),
                     splitter_list=[0]
                 )
 
             active_doc_ids = list(tracker_dict.keys())
 
-            paragraph_pbar = None
             if self.show_paragraph_progress:
-                total_paragraphs = sum(len(tracker.paragraphs) for tracker in tracker_dict.values())
-                if total_paragraphs > 0:
-                    paragraph_pbar = tqdm(total=total_paragraphs,
-                                          desc=f"Batch {batch_idx} paragraphs",
-                                          leave=False,
-                                          position=batch_idx + 1)
+                total_segments = sum(len(tracker.segments) for tracker in tracker_dict.values())
+                if total_segments > 0:
+                    # Use modulo to prevent position overflow on terminal
+                    safe_position = (batch_idx % 10) + 1
+                    segment_pbar = tqdm(total=total_segments,
+                                        desc=f"Batch {batch_idx} segments",
+                                        leave=False,
+                                        position=safe_position)
 
-            try:
-                # request the llm recursively in a batch
-                while True:
+            # request the llm recursively in a batch
+            while True:
 
-                    # find still active docs
-                    still_active_id_list = []
+                # find still active docs
+                still_active_id_list = []
 
-                    for doc_id in active_doc_ids:
-                        chunking_context = tracker_dict[doc_id]
-                        if chunking_context.splitter_list[-1] + self.buffer_size <= len(chunking_context.paragraphs):
-                            still_active_id_list.append(doc_id)
-                    if len(still_active_id_list) <= 0:
-                        break
+                for doc_id in active_doc_ids:
+                    chunking_context = tracker_dict[doc_id]
+                    if chunking_context.splitter_list[-1] + self.buffer_size <= len(chunking_context.segments):
+                        still_active_id_list.append(doc_id)
+                if len(still_active_id_list) <= 0:
+                    break
 
-                    self.request_generative_llm(generation_model, tracker_dict, still_active_id_list,
-                                                paragraph_pbar=paragraph_pbar)
+                self.request_generative_llm(generation_model, tracker_dict, still_active_id_list,
+                                            segment_pbar=segment_pbar)
 
-                # chunking
+            # chunking
 
-                chunks: List[Chunk] = []
+            chunks: List[Chunk] = []
 
-                for doc_id, tracker in tracker_dict.items():
+            for doc_id, tracker in tracker_dict.items():
 
-                    splitter_list = tracker.splitter_list
+                splitter_list = tracker.splitter_list
 
-                    splitter_list.append(len(tracker.paragraphs))
+                splitter_list.append(len(tracker.segments))
 
-                    if paragraph_pbar and tracker.processed_paragraphs < len(tracker.paragraphs):
-                        remaining = len(tracker.paragraphs) - tracker.processed_paragraphs
-                        if remaining > 0:
-                            paragraph_pbar.update(remaining)
-                            tracker.processed_paragraphs += remaining
+                if segment_pbar and tracker.processed_segments < len(tracker.segments):
+                    remaining = len(tracker.segments) - tracker.processed_segments
+                    if remaining > 0:
+                        segment_pbar.update(remaining)
+                        tracker.processed_segments += remaining
 
-                    chunk_counter = count()
+                chunk_counter = count()
 
-                    for i in range(1, len(splitter_list)):
-                        start = splitter_list[i - 1]
-                        end = splitter_list[i]
+                for i in range(1, len(splitter_list)):
+                    start = splitter_list[i - 1]
+                    end = splitter_list[i]
 
-                        if tracker.paragraphs[start:end]:
-                            chunk_text = "\n".join(tracker.paragraphs[start:end])
-                            chunk = Chunk(
-                                doc_id=doc_id,
-                                chunk_id=f"{doc_id}-Chunk-{next(chunk_counter)}",
-                                text=chunk_text
-                            )
+                    if tracker.segments[start:end]:
+                        chunk_text = "\n".join(tracker.segments[start:end])
+                        chunk = Chunk(
+                            doc_id=doc_id,
+                            chunk_id=f"{doc_id}-Chunk-{next(chunk_counter)}",
+                            text=chunk_text
+                        )
 
-                            chunks.append(chunk)
+                        chunks.append(chunk)
 
-                return chunks
-            finally:
-                if paragraph_pbar:
-                    paragraph_pbar.close()
+            return chunks
 
         except Exception as e:
             import traceback
             print(f"Error processing batch {batch_idx}: {str(e)}\n{traceback.format_exc()}")
             return []
+
+        finally:
+            # Clean up resources
+            if segment_pbar:
+                segment_pbar.close()
 
     def chunk(self, raw_docs: List[Document]):
 
