@@ -86,8 +86,6 @@ class GeminiGenerator(BaseGenerator):
         if structured_output:
             generation_config.update(structured_output)
 
-        print(f"Generation configuration: {generation_config}")
-
         tasks = []
         for i, prompt in enumerate(prompts):
             task = {
@@ -279,6 +277,7 @@ class GeminiGenerator(BaseGenerator):
                  in_batch=True,
                  structured_output: Optional[str] = None,
                  max_workers: Optional[int] = None,
+                 seed: int = 42,
                  ) -> Dict[str, Any]:
 
 
@@ -287,6 +286,8 @@ class GeminiGenerator(BaseGenerator):
         else:
             structured_output_dict = None
 
+        print(f"Generation configuration: temperature: {temperature}, top_k: {top_k}, top_p: {top_p}, "
+              f"in_batch: {in_batch}, structured_output: {structured_output}, seed: {seed}")
 
         result = {
             "status": None,
@@ -303,7 +304,7 @@ class GeminiGenerator(BaseGenerator):
                 top_p=top_p,
                 display_name=display_name,
                 structured_output=structured_output_dict,
-                seed=42
+                seed=seed
             )
 
             batch_job = self.wait_for_completion(batch_job, poll_interval=30)
@@ -325,7 +326,7 @@ class GeminiGenerator(BaseGenerator):
                 top_p=top_p,
                 structured_output=structured_output_dict,
                 max_workers=max_workers,
-                seed=42
+                seed=seed
             )
 
             result["responses"] = responses
