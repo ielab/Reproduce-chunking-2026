@@ -133,7 +133,7 @@ class LumberChunker(BaseChunker):
         self.use_batch_api = _safe_bool(kwargs.get("use_batch_api"), True)
         self.show_paragraph_progress = _safe_bool(kwargs.get("show_paragraph_progress"), True)
         # self.batch_api_threshold = _safe_int(kwargs.get("batch_api_threshold"), 10)
-        self.batch_api_threshold = 80
+        self.batch_api_threshold = 100
 
         # Multi-threading configuration
         self.num_parallel_batches = _safe_int(kwargs.get("num_parallel_batches"), 4)
@@ -312,7 +312,7 @@ class LumberChunker(BaseChunker):
                     error_msg = "no valid ID match in response"
                 else:
                     next_boundary = int(match.group(1))
-                    if 0 < next_boundary <= len(tracker.segments):
+                    if tracker.splitter_list[-1] < next_boundary <= len(tracker.segments):
                         valid_boundary = next_boundary
                     else:
                         error_msg = f"invalid boundary {next_boundary} (max: {len(tracker.segments)})"
@@ -390,6 +390,14 @@ class LumberChunker(BaseChunker):
                     chunking_context = tracker_dict[doc_id]
                     if chunking_context.splitter_list[-1] + self.buffer_size <= len(chunking_context.segments):
                         still_active_id_list.append(doc_id)
+
+                if len(still_active_id_list) == 1:
+                    print(f"still_active_id_list: {still_active_id_list}")
+                    test_chunking_context = tracker_dict[still_active_id_list[0]]
+                    print(test_chunking_context.splitter_list,
+                          len(test_chunking_context.segments),
+                          test_chunking_context.processed_segments)
+
                 if len(still_active_id_list) <= 0:
                     break
 
@@ -463,12 +471,44 @@ class LumberChunker(BaseChunker):
                 print("[LumberChunker] No remaining documents to process. Resume finished.")
                 return chunks
 
+        # Separate empty and non-empty documents
+        empty_docs = [doc for doc in raw_docs if not doc.text or not doc.text.strip()]
+        non_empty_docs = [doc for doc in raw_docs if doc.text and doc.text.strip()]
+
+        if empty_docs:
+            print(f"[LumberChunker] Found {len(empty_docs)} documents with empty text. Creating empty chunks.")
+
+            # Create empty chunks for empty documents
+            empty_chunks = []
+            for doc in empty_docs:
+                chunk = Chunk(
+                    doc_id=doc.doc_id,
+                    chunk_id=f"{doc.doc_id}-Chunk-0",
+                    text=""
+                )
+                empty_chunks.append(chunk)
+
+            # Save empty chunks immediately
+            if self._sink and empty_chunks:
+                with self._write_lock:
+                    self._sink.write_batch(empty_chunks)
+                    if self.resume:
+                        self.processed_doc_ids.update(chunk.doc_id for chunk in empty_chunks)
+                    print(f"Saved {len(empty_chunks)} empty chunks")
+
+            chunks.extend(empty_chunks)
+
+        # Process only non-empty documents
+        if not non_empty_docs:
+            print("[LumberChunker] No non-empty documents to process.")
+            return chunks
+
         # Split documents into batches
-        batches = [raw_docs[i:i + self.batch_size]
-                   for i in range(0, len(raw_docs), self.batch_size)]
+        batches = [non_empty_docs[i:i + self.batch_size]
+                   for i in range(0, len(non_empty_docs), self.batch_size)]
 
         print(
-            f"Processing {len(raw_docs)} documents in {len(batches)} batches using {self.num_parallel_batches} parallel threads")
+            f"Processing {len(non_empty_docs)} documents in {len(batches)} batches using {self.num_parallel_batches} parallel threads")
 
         try:
             # Process batches with threads
