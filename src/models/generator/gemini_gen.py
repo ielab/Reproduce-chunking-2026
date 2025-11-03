@@ -209,6 +209,7 @@ class GeminiGenerator(BaseGenerator):
                               structured_output: dict = None,
                               max_workers: Optional[int] = None,
                               seed: int = 42,
+                              max_retries: int = 10,  # Add max retries parameter
                               ):
 
         if not prompts:
@@ -224,47 +225,69 @@ class GeminiGenerator(BaseGenerator):
         if top_p is not None:
             generation_config["top_p"] = top_p
 
-        # print(f"Generation configuration: {generation_config}, System instruction: {system_instruction}")
-
         if structured_output:
             generation_config.update(structured_output)
 
-        max_workers = max_workers or 1
         responses: List[Optional[str]] = [None] * len(prompts)
 
         for idx, prompt in enumerate(prompts):
-            try:
-                responses[idx] = self._call_model(prompt, system_instruction, generation_config)
-            except Exception as e:
-                print(f"Error generating response: {e}")
-                responses[idx] = None
+            retry_count = 0
+
+            while retry_count < max_retries:
+                try:
+                    responses[idx] = self._call_model(prompt, system_instruction, generation_config)
+                    break  # Success, exit retry loop
+
+                except Exception as e:
+                    error_str = str(e).lower()
+                    retry_count += 1
+
+                    # Check for network-related errors
+                    is_network_error = any([
+                        'no route to host' in error_str,
+                        'errno 65' in error_str,
+                        'connection refused' in error_str,
+                        'errno 61' in error_str,
+                        'connection reset' in error_str,
+                        'errno 54' in error_str,
+                        'timeout' in error_str,
+                        'timed out' in error_str,
+                        'network' in error_str,
+                    ])
+
+                    # Check for server overload errors
+                    is_server_error = any([
+                        '503' in error_str,
+                        '502' in error_str,
+                        '500' in error_str,
+                        'overloaded' in error_str,
+                        'rate limit' in error_str,
+                    ])
+
+                    if is_network_error or is_server_error:
+                        if retry_count < max_retries:
+                            # Exponential backoff: 2, 4, 8, 16, 32 seconds
+                            wait_time = min(2 ** retry_count, 60)  # Cap at 60 seconds
+
+                            error_type = "Network" if is_network_error else "Server"
+                            print(f"{error_type} error on prompt {idx}: {e}")
+                            print(f"Retry {retry_count}/{max_retries} in {wait_time}s...")
+                            time.sleep(wait_time)
+                        else:
+                            print(f"Max retries ({max_retries}) reached for prompt {idx}")
+                            responses[idx] = None
+                            break
+                    else:
+                        # Non-retryable error
+                        print(f"Non-retryable error on prompt {idx}: {e}")
+                        responses[idx] = None
+                        break
+
+            # If we exhausted all retries
+            if retry_count >= max_retries and responses[idx] is None:
+                print(f"Failed to get response for prompt {idx} after {max_retries} retries")
+
         return responses
-
-
-        # if max_workers <= 1:
-        #     for idx, prompt in enumerate(prompts):
-        #         try:
-        #             responses[idx] = self._call_model(prompt, system_instruction, generation_config)
-        #         except Exception as e:
-        #             print(f"Error generating response: {e}")
-        #             responses[idx] = None
-        #     return responses
-        #
-        # with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        #     future_to_idx = {
-        #         executor.submit(self._call_model, prompt, system_instruction, generation_config): idx
-        #         for idx, prompt in enumerate(prompts)
-        #     }
-        #
-        #     for future in as_completed(future_to_idx):
-        #         idx = future_to_idx[future]
-        #         try:
-        #             responses[idx] = future.result()
-        #         except Exception as e:
-        #             print(f"Error generating response: {e}")
-        #             responses[idx] = None
-        #
-        # return responses
 
 
     def generate(self,
@@ -286,8 +309,8 @@ class GeminiGenerator(BaseGenerator):
         else:
             structured_output_dict = None
 
-        print(f"Generation configuration: temperature: {temperature}, top_k: {top_k}, top_p: {top_p}, "
-              f"in_batch: {in_batch}, structured_output: {structured_output}, seed: {seed}")
+        # print(f"Generation configuration: temperature: {temperature}, top_k: {top_k}, top_p: {top_p}, "
+        #       f"in_batch: {in_batch}, structured_output: {structured_output}, seed: {seed}")
 
         result = {
             "status": None,
