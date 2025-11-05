@@ -62,7 +62,6 @@ def cmd_chunk(args: argparse.Namespace):
 
     # run processor and chunker
     processor: BaseProcessor = PROCESSOR_REG.get(p_all_params['processor_name'])(**p_kw)
-    docs: List[Document] = processor.load_corpus()
 
     c_kw['chunk_sink_path'] = chunks_output_path
     c_kw['resume'] = args.resume
@@ -75,7 +74,19 @@ def cmd_chunk(args: argparse.Namespace):
 
     print(c_kw)
     chunker: BaseChunker = CHUNKER_REG.get(c_all_params['chunker_name'])(**c_kw)
-    chunker.chunk(raw_docs=docs)
+
+    # Special case: For GutenQA + Proposition, load existing chunks instead of docs
+    if p_kw['dataset_name'] == 'GutenQA' and c_all_params['chunker_name'] == "Proposition":
+        # Load pre-existing chunks from LumberChunker
+        lumber_chunk_path = f"{args.output_folder}/GutenQA/chunks/LumberChunker/chunks.jsonl"
+        chunks = load_chunks(lumber_chunk_path)
+        # Pass chunks to chunker instead of docs
+        print(type(chunks))
+        chunker.chunk(raw_docs=chunks)
+    else:
+        # Normal flow: load docs and chunk them
+        docs: List[Document] = processor.load_corpus()
+        chunker.chunk(raw_docs=docs)
 
     write_chunk_manifest(
         paths=P,

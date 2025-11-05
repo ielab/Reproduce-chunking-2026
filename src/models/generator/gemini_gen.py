@@ -171,7 +171,7 @@ class GeminiGenerator(BaseGenerator):
                             text_content = result_item['response']['candidates'][0]['content']['parts'][0]['text']
 
                         except KeyError as e:
-                            print("text_content", e)
+                            print("text_content error", e)
                             text_content = ""
 
                         results_dict[int(custom_id)] = text_content
