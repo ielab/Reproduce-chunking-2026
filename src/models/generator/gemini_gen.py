@@ -31,13 +31,25 @@ class GeminiGenerator(BaseGenerator):
         }
 
         self.structure_array_dict = {
-
-                        "response_mime_type": "application/json",
-                        "response_schema": {
-                            "type": "ARRAY",
-                            "items": {"type": "STRING"}
+                        "responseMimeType": "application/json",
+                        "responseJsonSchema": {
+                            "type": "object",
+                            "properties": {
+                                "items": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                }
+                            },
+                            "propertyOrdering": [
+                                "items"
+                            ]
                         }
                     }
+
+
+
 
     def create_request(self, prompt: str, generation_config: Dict[str, Any]) -> Dict:
 
@@ -90,7 +102,7 @@ class GeminiGenerator(BaseGenerator):
         for i, prompt in enumerate(prompts):
             task = {
                 "request": self.create_batch_request(prompt, generation_config, system_instruction),
-                "custom_id": str(i)
+                "key": str(i)
             }
             tasks.append(task)
 
@@ -164,7 +176,7 @@ class GeminiGenerator(BaseGenerator):
                 for line in content_str.strip().split('\n'):
                     if line:
                         result_item = json.loads(line)
-                        custom_id = result_item.get('custom_id')
+                        key = result_item.get('key')
 
                         try:
                             # Extract response text
@@ -174,7 +186,7 @@ class GeminiGenerator(BaseGenerator):
                             print("text_content error", e)
                             text_content = ""
 
-                        results_dict[int(custom_id)] = text_content
+                        results_dict[int(key)] = text_content
 
 
         ordered_results = [results_dict.get(i) for i in range(input_length)]
@@ -360,11 +372,7 @@ class GeminiGenerator(BaseGenerator):
 
 if __name__ == "__main__":
 
-    gemini = GeminiGenerator(model="gemini-2.5-flash")
-
-    p_s = ["I'm not saying I don't like the idea of on-the-job training too, but you can't expect the company to do that. "
-           "Training workers is not their job - they're building software. Perhaps educational systems in the U.S. "] * 10
-    ins = """Decompose the "Content" into clear and simple propositions, ensuring they are interpretable out of context.
+    task_instruction = """Decompose the "Content" into clear and simple propositions, ensuring they are interpretable out of context.
 1. Split compound sentence into simple sentences. Maintain the original phrasing from the input whenever possible.
 2. For any named entity that is accompanied by additional descriptive information, separate this information into its own distinct proposition.
 3. Decontextualize the proposition by adding necessary modifier to nouns or entire sentences and replacing pronouns (e.g., "it", "he", "she", "they", "this", "that") with the full name of the entities they refer to.
@@ -372,17 +380,31 @@ if __name__ == "__main__":
 Input: Title: Eostre. Section: Theories and interpretations, Connection to Easter Hares. Content: The earliest evidence for the Easter Hare (Osterhase) was recorded in south-west Germany in 1678 by the professor of medicine Georg Franck von Franckenau, but it remained unknown in other parts of Germany until the 18th century. Scholar Richard Sermon writes that "hares were frequently seen in gardens in spring, and thus may have served as a convenient explanation for the origin of the colored eggs hidden there for children. Alternatively, there is a European tradition that hares laid eggs, since a hare’s scratch or form and a lapwing’s nest look very similar, and both occur on grassland and are first seen in the spring. In the nineteenth century the influence of Easter cards, toys, and books was to make the Easter Hare/Rabbit popular throughout Europe. German immigrants then exported the custom to Britain and America where it evolved into the Easter Bunny."
 Output: [ "The earliest evidence for the Easter Hare was recorded in south-west Germany in 1678 by Georg Franck von Franckenau.", "Georg Franck von Franckenau was a professor of medicine.", "The evidence for the Easter Hare remained unknown in other parts of Germany until the 18th century.", "Richard Sermon was a scholar.", "Richard Sermon writes a hypothesis about the possible explanation for the connection between hares and the tradition during Easter", "Hares were frequently seen in gardens in spring.", "Hares may have served as a convenient explanation for the origin of the colored eggs hidden in gardens for children.", "There is a European tradition that hares laid eggs.", "A hare’s scratch or form and a lapwing’s nest look very similar.", "Both hares and lapwing’s nests occur on grassland and are first seen in the spring.", "In the nineteenth century the influence of Easter cards, toys, and books was to make the Easter Hare/Rabbit popular throughout Europe.", "German immigrants exported the custom of the Easter Hare/Rabbit to Britain and America.", "The custom of the Easter Hare/Rabbit evolved into the Easter Bunny in Britain and America." ]"""
 
-    new_prompts = [ins + "\n\n" + f"Input: {p}" + "\nOutput:" for p in p_s]
+    p_s = [
+        # "Rapid distribution of information by SMS-embedded video link to patients during a pandemic"
+        ".\""
+    ]
 
-    # result = gemini.generate(
-    #     prompts=new_prompts,
-    #     structured_output='array',
-    #     in_batch=False,
-    #     temperature=0,
-    #     top_k=1,
-    #     max_workers = 4
-    # )
-    #
-    # print(result)
+    new_prompts = [task_instruction + "\n\n" + f"Input: {p}" + "\nOutput:" for p in p_s]
 
-    print(new_prompts[0])
+    generation_model = GeminiGenerator(model="gemini-2.5-flash-lite")
+
+    # new_prompt = task_instruction + "\n\n" + f"Input: {paragraph}" + "\nOutput:"
+
+    llm_output: Dict = generation_model.generate(
+        prompts=new_prompts,
+        temperature=0,
+        top_k=1,
+        display_name=f"Generate propositions",
+        in_batch=False,
+        structured_output='array'
+    )
+
+    responses = llm_output['responses']
+
+    import ast
+
+    propositions = ast.literal_eval(responses[0])
+    print(propositions)
+
+
