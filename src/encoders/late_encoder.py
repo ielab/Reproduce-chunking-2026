@@ -43,6 +43,10 @@ class LateEncoder(BaseEncoder):
             self.tokenizer.model_max_length = 8192
         elif backbone_kwargs.get('model_name') == "nomic-ai/nomic-embed-text-v1":
             self.tokenizer.model_max_length = 8192
+        elif backbone_kwargs.get('model_name') == "jinaai/jina-embeddings-v3":
+            self.tokenizer.model_max_length = 8192
+        elif backbone_kwargs.get('model_name') == "intfloat/multilingual-e5-large-instruct":
+            self.tokenizer.model_max_length = 512
 
         self.model_max_length = self.tokenizer.model_max_length
         self.long_late_chunking_overlap_size = 256

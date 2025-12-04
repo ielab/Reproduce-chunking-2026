@@ -54,13 +54,13 @@ def get_chunker_display_name(chunker_name: str) -> str:
     chunker_mapping = {
         'ParagraphChunker': 'Paragraph',
         'SentenceChunker': 'Sentence',
-        'FixedSizeChunker': 'Fixed-Size',
+        #'FixedSizeChunker': 'Fixed-Size',
         'FixedSizeChunker-256': 'Fixed-Size (256)',
         'SemanticChunker': 'Semantic',
-        'LumberChunker': 'Lumber',
-        'LumberChunker-GPT': 'Lumber (GPT)',
+        #'LumberChunker': 'Lumber',
+        #'LumberChunker-GPT': 'Lumber (GPT)',
         'LumberChunker-Gemini': 'Lumber (Gemini)',
-        'Proposition': 'Proposition',
+        'Proposition-Gemini': 'Proposition (Gemini)',
     }
     return chunker_mapping.get(chunker_name, chunker_name)
 
@@ -339,8 +339,8 @@ def main():
         'FixedSizeChunker-256',
         'SemanticChunker',
         'LumberChunker-Gemini',
-        'LumberChunker-GPT',
-        'Proposition',
+        #'LumberChunker-GPT',
+        'Proposition-Gemini',
     ]
 
     ENCODER = 'LateEncoder'

@@ -77,11 +77,11 @@ def cmd_chunk(args: argparse.Namespace):
 
     # Special case: For GutenQA + Proposition, load existing chunks instead of docs
     if p_kw['dataset_name'] == 'GutenQA' and c_all_params['chunker_name'] == "Proposition":
-        # Load pre-existing chunks from LumberChunker
-        lumber_chunk_path = f"{args.output_folder}/GutenQA/chunks/LumberChunker/chunks.jsonl"
-        chunks = load_chunks(lumber_chunk_path)
-        # Pass chunks to chunker instead of docs
-        print(type(chunks))
+        # Load pre-existing paragraph chunks to split into propositions
+        paragraph_chunk_path = f"{args.output_folder}/GutenQA/chunks/ParagraphChunker/chunks.jsonl"
+        chunks = load_chunks(paragraph_chunk_path)
+        # Pass paragraph chunks to proposition chunker
+        print(f"Loading {len(chunks)} paragraph chunks for proposition splitting")
         chunker.chunk(raw_docs=chunks)
     else:
         # Normal flow: load docs and chunk them
@@ -243,7 +243,8 @@ def cmd_evaluator(args: argparse.Namespace):
         raise ValueError("--trec-file is required when --skip-search is used")
 
     if args.dataset_name == 'GutenQA' and args.chunk_run_id == "Proposition":
-        chunk_path = f"{args.source_path}/{args.dataset_name}/chunks/LumberChunker/chunks.jsonl"
+        # For proposition evaluation, load original paragraph chunks (before proposition splitting)
+        chunk_path = f"{args.source_path}/{args.dataset_name}/chunks/ParagraphChunker/chunks.jsonl"
     else:
         chunk_path = f"{args.source_path}/{args.dataset_name}/chunks/{args.chunk_run_id}/chunks.jsonl"
 

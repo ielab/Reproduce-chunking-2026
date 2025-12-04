@@ -10,3 +10,7 @@ paper/ecir2026-chunking.pdf
 /src/chunkers/__pycache__
 /src/io/__pycache__
 /src/processors/__pycache__
+/paper/.idea
+run_encoder.sh
+/src/results
+/src/results

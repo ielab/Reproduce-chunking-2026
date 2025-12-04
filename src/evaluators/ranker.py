@@ -32,22 +32,23 @@ def _top_k_rows(scores: np.array, k: int) -> Tuple[np.array, np.array]:
 def keep_highest_scores(pairs: List[Tuple[str, float]]) -> List[Tuple[str, float]]:
     """
     If there are duplicate chunk_ids in the ranking_result, keep only the one with the highest score.
-    :param pairs:
-    :return:
-    """
 
-    best_scores = {}
-    order = []
+    Note: Input pairs are already sorted in descending order by score (from _top_k_rows).
+    Therefore, the first occurrence of each chunk_id has the highest score.
+    We simply keep first occurrences and skip duplicates to preserve ranking order.
+
+    :param pairs: List of (chunk_id, score) tuples sorted by score descending
+    :return: Deduplicated list maintaining the correct ranking order
+    """
+    seen = set()
+    result = []
 
     for chunk_id, score in pairs:
-        if chunk_id not in best_scores:
-            best_scores[chunk_id] = score
-            order.append(chunk_id)
-        else:
-            if score > best_scores[chunk_id]:
-                best_scores[chunk_id] = score
+        if chunk_id not in seen:
+            seen.add(chunk_id)
+            result.append((chunk_id, score))
 
-    return [(cid, best_scores[cid]) for cid in order]
+    return result
 
 
 

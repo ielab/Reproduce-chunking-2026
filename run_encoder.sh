@@ -3,7 +3,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=256g
+#SBATCH --mem=512g
 #SBATCH --gres=gpu:1
 #SBATCH --qos=express
 #SBATCH --account=OD-236007
@@ -46,11 +46,13 @@ echo "Chunk Run ID: $CHUNK_RUN_ID"
 
 MODEL_NAME_CLEAN="${MODEL_NAME##*/}"
 
-# Set batch size based on model
-if [[ "$MODEL_NAME" == "jinaai/jina-embeddings-v2-small-en" ]]; then
+# Set batch size based on encoder and model
+if [[ "$ENCODER" == "LateEncoder" ]]; then
   BATCH_SIZE=4
+elif [[ "$MODEL_NAME" == "jinaai/jina-embeddings-v3" ]]; then
+  BATCH_SIZE=8
 else
-  BATCH_SIZE=4
+  BATCH_SIZE=12
 fi
 
 # --- Handle Document Chunk Encoding ---

@@ -15,7 +15,19 @@ def _token_length(text: str) -> int:
     return max(1, len(text.split()))
 
 
-def compute_relevance_and_penalties(retrieval_chunk_list: List[str], gold_label: str) -> Tuple[List[int], List[float]]:
+def compute_relevance_and_penalties(retrieval_chunk_list: List[List[str]], gold_label: str) -> Tuple[List[int], List[float]]:
+    """
+    Compute relevance and penalties for retrieved chunks.
+    Now handles multiple propositions per chunk (for proposition-based chunking).
+
+    Args:
+        retrieval_chunk_list: List of chunks, where each chunk is a list of propositions (or single-item list for regular chunks)
+        gold_label: The gold answer string to match
+
+    Returns:
+        relevance: Binary relevance scores (1 if gold label found in any proposition, 0 otherwise)
+        penalties: Length-normalized penalties
+    """
     relevance: List[int] = []
     penalties: List[float] = []
 
@@ -23,22 +35,41 @@ def compute_relevance_and_penalties(retrieval_chunk_list: List[str], gold_label:
     gold_len = _token_length(gold_label)
     match_found = False
 
-    for chunk in retrieval_chunk_list:
-        if chunk is None:
+    for chunk_propositions in retrieval_chunk_list:
+        if not chunk_propositions or all(p is None for p in chunk_propositions):
             relevance.append(0)
             penalties.append(1.0)
             continue
 
-        chunk_len = _token_length(chunk)
-        penalty = min(1.0, gold_len / chunk_len)
+        # Check if gold label appears in ANY proposition for this chunk
+        found_in_propositions = []
+        penalties_for_propositions = []
 
-        if not match_found and gold_label_lower in chunk.lower():
+        for proposition in chunk_propositions:
+            if proposition is None:
+                continue
+
+            prop_len = _token_length(proposition)
+            prop_penalty = min(1.0, gold_len / prop_len)
+
+            if gold_label_lower in proposition.lower():
+                found_in_propositions.append(True)
+                penalties_for_propositions.append(prop_penalty)
+            else:
+                found_in_propositions.append(False)
+                penalties_for_propositions.append(prop_penalty)
+
+        # If gold label found in any proposition, mark as relevant
+        if not match_found and any(found_in_propositions):
             relevance.append(1)
-            penalties.append(penalty)
+            # Use the minimum penalty among propositions that contain the gold label
+            matching_penalties = [p for found, p in zip(found_in_propositions, penalties_for_propositions) if found]
+            penalties.append(min(matching_penalties) if matching_penalties else 1.0)
             match_found = True
         else:
             relevance.append(0)
-            penalties.append(penalty)
+            # Use the minimum penalty across all propositions
+            penalties.append(min(penalties_for_propositions) if penalties_for_propositions else 1.0)
 
     return relevance, penalties
 
@@ -109,14 +140,21 @@ class QutenQAEvaluator(BaseEvaluator):
             scope=self.scope)
 
         # get query-relevance mapping
-        chunk_id2text = {c.chunk_id:c.text for c in chunks}
+        # Build mapping: chunk_id -> original chunk text
+        # Note: For proposition-based evaluation, chunks should be the ORIGINAL paragraphs,
+        # not the propositions. Propositions are only used for embedding/ranking.
+        chunk_id2text = {c.chunk_id: c.text for c in chunks}
+
         ranked_relevance_dict: Dict[str: List[int]] = {}
         ranked_penalty_dict: Dict[str: List[float]] = {}
 
         for query in tqdm(queries, desc="Calculating GutenQA Metrics"):
 
             query_id = query.query_id
-            re_chunk_list = [chunk_id2text.get(c_id) for c_id, _ in ranking_result.get(query_id, [])]
+            # Get original chunk text for each ranked chunk_id
+            # For propositions: chunk_id represents the original paragraph,
+            # and we check gold label against that original text
+            re_chunk_list = [[chunk_id2text.get(c_id)] for c_id, _ in ranking_result.get(query_id, [])]
 
             relevance, penalties = compute_relevance_and_penalties(re_chunk_list, query.chunk_must_Contain)
 
