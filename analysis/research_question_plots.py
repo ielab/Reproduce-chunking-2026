@@ -54,8 +54,8 @@ CHUNKER_DISPLAY_NAMES = {
     "SentenceChunker": "Sentence",
     "FixedSizeChunker": "Fixed-Size",
     "SemanticChunker": "Semantic Boundary",
-    "LumberChunker": "Lumber",
-    "Proposition": "Proposition",
+    "LumberChunker-Gemini": "Lumber",
+    "Proposition-Gemini": "Proposition",
 }
 
 CHUNKER_ORDER = [
@@ -63,9 +63,8 @@ CHUNKER_ORDER = [
     "Sentence",
     "Fixed-Size",
     "Semantic Boundary",
-    "Lumber (GPT)",
     "Lumber (Gemini)",
-    "Lumber (LLM)",
+    "Proposition (Gemini)",
 ]
 
 METRIC_FILE_BY_DATASET = defaultdict(lambda: "nDCG@10.eval", {"GutenQA": "DCG@10.eval"})

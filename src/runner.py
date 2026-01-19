@@ -19,6 +19,15 @@ from src.io.sink import write_trec_file
 API_KEY = None
 
 
+def _is_gutenqa_proposition_run(dataset_name: str, chunk_run_id: str) -> bool:
+    """
+    Proposition runs on GutenQA reuse paragraph chunk_ids.
+    Their ranking should therefore be evaluated against the original
+    paragraph chunks rather than the proposition file itself.
+    """
+    return dataset_name == 'GutenQA' and 'proposition' in chunk_run_id.lower()
+
+
 def cmd_chunk(args: argparse.Namespace):
     args_dict = vars(args)
 
@@ -242,7 +251,7 @@ def cmd_evaluator(args: argparse.Namespace):
     if args.skip_search and not args.trec_file:
         raise ValueError("--trec-file is required when --skip-search is used")
 
-    if args.dataset_name == 'GutenQA' and args.chunk_run_id == "Proposition":
+    if _is_gutenqa_proposition_run(args.dataset_name, args.chunk_run_id):
         # For proposition evaluation, load original paragraph chunks (before proposition splitting)
         chunk_path = f"{args.source_path}/{args.dataset_name}/chunks/ParagraphChunker/chunks.jsonl"
     else:
@@ -515,4 +524,3 @@ def main(argv: List[str]):
 if __name__ == '__main__':
     print(sys.argv[1:])
     main(sys.argv[1:])
-

@@ -392,10 +392,8 @@ def main():
         'ParagraphChunker',
         'SentenceChunker',
         'FixedSizeChunker-256',
-        'SemanticChunker',
         'LumberChunker-Gemini',
-        'LumberChunker-GPT',
-        'Proposition',
+        'Proposition-Gemini',
     ]
 
     # Output path (relative to current working directory)

@@ -38,8 +38,8 @@ def load_chunk_ids(file_path: str) -> dict:
 
 def main():
     # File paths
-    paragraph_path = "/Users/wan458/workspace/2025s3Postdoc/Reproduce-chunking-2026/src/chunked_output/GutenQA/chunks/ParagraphChunker/chunks.jsonl"
-    proposition_path = "/Users/wan458/workspace/2025s3Postdoc/Reproduce-chunking-2026/src/chunked_output/GutenQA/chunks/Proposition-Gemini/chunks.jsonl"
+    paragraph_path = "src/chunked_output/GutenQA/chunks/ParagraphChunker/chunks.jsonl"
+    proposition_path = "src/chunked_output/GutenQA/chunks/Proposition-Gemini/chunks.jsonl"
 
     print("=" * 80)
     print("Chunk ID Verification Script")

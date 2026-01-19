@@ -14,3 +14,4 @@ paper/ecir2026-chunking.pdf
 run_encoder.sh
 /src/results
 /src/results
+/output_for_eval
