@@ -9,11 +9,13 @@ import re
 from pathlib import Path
 from collections import defaultdict
 from typing import Dict, List, Tuple, Optional
+from scipy import stats
+import numpy as np
 
 
-def parse_eval_file(eval_path: str) -> Optional[float]:
+def parse_eval_file(eval_path: str) -> Tuple[Optional[float], Optional[Dict[str, float]]]:
     """
-    Parse an nDCG@10.eval file and extract the average score.
+    Parse an nDCG@10.eval file and extract the average score and per-query scores.
 
     Format expected:
     query_id_1 score_1
@@ -22,20 +24,54 @@ def parse_eval_file(eval_path: str) -> Optional[float]:
     average score_avg
 
     Returns:
-        The average score, or None if file doesn't exist or parsing fails
+        Tuple of (average score, dict of query_id -> score), or (None, None) if parsing fails
     """
     try:
         with open(eval_path, 'r') as f:
             lines = f.readlines()
-            for line in reversed(lines):  # Start from the end to find 'average' line
+            per_query_scores = {}
+            average_score = None
+            for line in lines:
                 line = line.strip()
-                if line.startswith('average'):
-                    parts = line.split()
-                    if len(parts) == 2:
-                        return float(parts[1])
-        return None
+                if not line:
+                    continue
+                parts = line.split()
+                if len(parts) == 2:
+                    query_id, score = parts
+                    if query_id == 'average':
+                        average_score = float(score)
+                    else:
+                        per_query_scores[query_id] = float(score)
+            return average_score, per_query_scores
     except (FileNotFoundError, ValueError, IOError):
-        return None
+        return None, None
+
+
+def paired_ttest(scores1: Dict[str, float], scores2: Dict[str, float], alpha: float = 0.05) -> Tuple[bool, float]:
+    """
+    Perform paired t-test between two sets of per-query scores.
+
+    Args:
+        scores1: Dict mapping query_id -> score for method 1
+        scores2: Dict mapping query_id -> score for method 2
+        alpha: Significance level (default 0.05)
+
+    Returns:
+        Tuple of (is_significant, p_value)
+    """
+    # Get common query ids
+    common_ids = set(scores1.keys()) & set(scores2.keys())
+    if len(common_ids) < 2:
+        return False, 1.0
+
+    # Extract paired scores
+    vals1 = [scores1[qid] for qid in sorted(common_ids)]
+    vals2 = [scores2[qid] for qid in sorted(common_ids)]
+
+    # Perform paired t-test
+    t_stat, p_value = stats.ttest_rel(vals1, vals2)
+
+    return p_value < alpha, p_value
 
 
 def get_model_display_name(model_name: str) -> str:
@@ -56,7 +92,7 @@ def get_chunker_display_name(chunker_name: str) -> str:
         'SentenceChunker': 'Sentence',
         #'FixedSizeChunker': 'Fixed-Size',
         'FixedSizeChunker-256': 'Fixed-Size (256)',
-        'SemanticChunker': 'Semantic',
+        'SemanticChunker': 'Semantic (Jina-v2)',
         #'LumberChunker': 'Lumber',
         #'LumberChunker-GPT': 'Lumber (GPT)',
         'LumberChunker-Gemini': 'Lumber (Gemini)',
@@ -82,7 +118,7 @@ def collect_results(
     models: List[str],
     chunkers: List[str],
     encoder: str = "LateEncoder"
-) -> Dict[Tuple[str, str, str], float]:
+) -> Tuple[Dict[Tuple[str, str, str], float], Dict[Tuple[str, str, str], Dict[str, float]]]:
     """
     Collect all nDCG@10 or DCG@10 results from the output directory.
 
@@ -94,9 +130,12 @@ def collect_results(
         encoder: Encoder name (default: LateEncoder)
 
     Returns:
-        Dictionary mapping (model, chunker, dataset) -> nDCG@10 or DCG@10 score
+        Tuple of:
+        - Dictionary mapping (model, chunker, dataset) -> average score
+        - Dictionary mapping (model, chunker, dataset) -> per-query scores dict
     """
     results = {}
+    per_query_results = {}
 
     for dataset in datasets:
         for chunker in chunkers:
@@ -118,17 +157,19 @@ def collect_results(
                     metric_file
                 )
 
-                score = parse_eval_file(eval_path)
+                score, query_scores = parse_eval_file(eval_path)
                 if score is not None:
                     results[(model, chunker_dir_name, dataset)] = score
+                    per_query_results[(model, chunker_dir_name, dataset)] = query_scores
                 else:
                     print(f"Warning: Could not read {eval_path}")
 
-    return results
+    return results, per_query_results
 
 
 def generate_latex_table(
     results: Dict[Tuple[str, str, str], float],
+    per_query_results: Dict[Tuple[str, str, str], Dict[str, float]],
     datasets: List[str],
     models: List[str],
     chunkers: List[str],
@@ -142,22 +183,62 @@ def generate_latex_table(
     - Second row: Dataset names
     - First column: Model names (multirow spanning all chunkers)
     - Remaining columns: nDCG@10 scores for each dataset
+
+    Significance markers:
+    - 'a': significantly different from the best chunker (paired t-test, p < 0.05)
+    - 'b': significantly different from the worst chunker (paired t-test, p < 0.05)
     """
 
-    # Find maximum score for each dataset PER MODEL (to bold them)
+    # Find maximum and minimum score chunkers for each (model, dataset)
     max_scores = {}  # key: (model, dataset), value: max_score
+    min_scores = {}  # key: (model, dataset), value: min_score
+    best_chunker = {}  # key: (model, dataset), value: chunker with best score
+    worst_chunker = {}  # key: (model, dataset), value: chunker with worst score
+
     for model in models:
         for dataset in datasets:
             dataset_scores = []
             for chunker in chunkers:
                 key = (model, chunker, dataset)
                 if key in results:
-                    dataset_scores.append(results[key])
+                    dataset_scores.append((results[key], chunker))
             if dataset_scores:
-                max_scores[(model, dataset)] = max(dataset_scores)
+                dataset_scores.sort(key=lambda x: x[0], reverse=True)
+                max_scores[(model, dataset)] = dataset_scores[0][0]
+                best_chunker[(model, dataset)] = dataset_scores[0][1]
+                min_scores[(model, dataset)] = dataset_scores[-1][0]
+                worst_chunker[(model, dataset)] = dataset_scores[-1][1]
 
-    # Find maximum average score PER MODEL
+    # Compute significance markers for each (model, chunker, dataset)
+    significance_markers = {}  # key: (model, chunker, dataset), value: string like 'a', 'b', 'ab', or ''
+    for model in models:
+        for dataset in datasets:
+            for chunker in chunkers:
+                key = (model, chunker, dataset)
+                if key not in per_query_results:
+                    continue
+
+                markers = []
+                best_key = (model, best_chunker.get((model, dataset)), dataset)
+                worst_key = (model, worst_chunker.get((model, dataset)), dataset)
+
+                # Compare with best (if not the best itself)
+                if best_key in per_query_results and key != best_key:
+                    is_sig, _ = paired_ttest(per_query_results[key], per_query_results[best_key])
+                    if is_sig:
+                        markers.append('a')
+
+                # Compare with worst (if not the worst itself)
+                if worst_key in per_query_results and key != worst_key:
+                    is_sig, _ = paired_ttest(per_query_results[key], per_query_results[worst_key])
+                    if is_sig:
+                        markers.append('b')
+
+                significance_markers[key] = ''.join(markers)
+
+    # Find maximum and minimum average score PER MODEL
     max_avg_per_model = {}  # key: model, value: max_avg
+    min_avg_per_model = {}  # key: model, value: min_avg
     for model in models:
         model_averages = []
         for chunker in chunkers:
@@ -171,15 +252,16 @@ def generate_latex_table(
                 model_averages.append(sum(corpus_scores) / len(corpus_scores))
         if model_averages:
             max_avg_per_model[model] = max(model_averages)
+            min_avg_per_model[model] = min(model_averages)
 
     # Start building the LaTeX table
     num_cols = len(datasets) + 2  # +1 for model/chunker column, +1 for average
     col_spec = 'll' + 'c' * (len(datasets) + 1)  # +1 for average column
 
     latex_lines = []
-    latex_lines.append(r'\begin{table}[htbp]')
+    latex_lines.append(r'\begin{table*}[htbp]')
     latex_lines.append(r'\centering')
-    latex_lines.append(r'\caption{Performance comparison across different models, chunking strategies, and datasets using DCG@10 for GutenQA and nDCG@10 for other datasets (LateEncoder)}')
+    latex_lines.append(r'\caption{Performance comparison across different models, chunking strategies, and datasets using DCG@10 for GutenQA and nDCG@10 for other datasets (Contextualized-chunking, Con-C). \textbf{Bold} indicates the best result per model-dataset; \underline{underline} indicates the worst. Superscripts: $^a$ = significantly different from best ($p < 0.05$, paired t-test); $^b$ = significantly different from worst.}')
     latex_lines.append(r'\label{tab:results_late_encoder}')
     latex_lines.append(r'\begin{tabular}{' + col_spec + r'}')
     latex_lines.append(r'\toprule')
@@ -191,10 +273,10 @@ def generate_latex_table(
 
     task_row = [' & ']
     if doc_datasets:
-        task_row.append(r'\multicolumn{1}{c}{\textbf{\textit{document}}}')
+        task_row.append(r'\multicolumn{1}{c}{\textbf{\textit{Single-document}}}')
     if corpus_datasets:
         # +1 for the average column
-        task_row.append(r'\multicolumn{' + str(len(corpus_datasets) + 1) + r'}{c}{\textbf{\textit{corpus}}}')
+        task_row.append(r'\multicolumn{' + str(len(corpus_datasets) + 1) + r'}{c}{\textbf{\textit{Multi-documents}}}')
     latex_lines.append(' & '.join(task_row) + r' \\')
 
     # Add cmidrules under task row
@@ -242,10 +324,18 @@ def generate_latex_table(
                     # Bold if this is the maximum score for this dataset WITHIN THIS MODEL
                     max_key = (model, dataset)
                     is_max = (max_key in max_scores and abs(score - max_scores[max_key]) < 1e-6)
+                    is_min = (max_key in min_scores and abs(score - min_scores[max_key]) < 1e-6)
+
+                    # Get significance markers
+                    sig_marker = significance_markers.get(key, '')
+                    sig_superscript = f'$^{{{sig_marker}}}$' if sig_marker else ''
+
                     if is_max:
-                        row.append(f'\\textbf{{{score:.4f}}}')
+                        row.append(f'\\textbf{{{score:.4f}}}{sig_superscript}')
+                    elif is_min:
+                        row.append(f'\\underline{{{score:.4f}}}{sig_superscript}')
                     else:
-                        row.append(f'{score:.4f}')
+                        row.append(f'{score:.4f}{sig_superscript}')
                     # Collect corpus scores for average (exclude GutenQA)
                     if dataset != 'GutenQA':
                         corpus_scores.append(score)
@@ -258,8 +348,11 @@ def generate_latex_table(
                 avg_score = sum(corpus_scores) / len(corpus_scores)
                 # Bold if this is the maximum average WITHIN THIS MODEL
                 is_max_avg = (model in max_avg_per_model and abs(avg_score - max_avg_per_model[model]) < 1e-6)
+                is_min_avg = (model in min_avg_per_model and abs(avg_score - min_avg_per_model[model]) < 1e-6)
                 if is_max_avg:
                     row.append(f'\\textbf{{{avg_score:.4f}}}')
+                elif is_min_avg:
+                    row.append(f'\\underline{{{avg_score:.4f}}}')
                 else:
                     row.append(f'{avg_score:.4f}')
             else:
@@ -294,7 +387,7 @@ def generate_latex_table(
 
     latex_lines.append(r'\bottomrule')
     latex_lines.append(r'\end{tabular}')
-    latex_lines.append(r'\end{table}')
+    latex_lines.append(r'\end{table*}')
 
     latex_table = '\n'.join(latex_lines)
 
@@ -349,12 +442,12 @@ def main():
     OUTPUT_PATH = 'results_table_late_encoder.tex'
 
     print("Collecting results...")
-    results = collect_results(BASE_PATH, DATASETS, MODELS, CHUNKERS, ENCODER)
+    results, per_query_results = collect_results(BASE_PATH, DATASETS, MODELS, CHUNKERS, ENCODER)
 
     print(f"Found {len(results)} result entries")
 
     print("Generating LaTeX table...")
-    latex_table = generate_latex_table(results, DATASETS, MODELS, CHUNKERS, OUTPUT_PATH)
+    latex_table = generate_latex_table(results, per_query_results, DATASETS, MODELS, CHUNKERS, OUTPUT_PATH)
 
     print("\nGenerated LaTeX table:")
     print("=" * 80)

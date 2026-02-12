@@ -30,9 +30,9 @@ class RegularEncoder(BaseEncoder):
     def encode_passages(self,
                chunks: List[Chunk],
                batch_size: int=32,
+               incremental: bool = True,
+               flush_every_n_batches: int = 100,
                **kwargs):
-
-        output: List[ChunkEmbedding] = []
 
         call_kwargs = {}
         if self.backbone == 'JinaaiV3':
@@ -41,32 +41,77 @@ class RegularEncoder(BaseEncoder):
         elif self.backbone == 'Normic':
             call_kwargs['instruction'] = 'search_document'
 
+        # Use incremental mode to avoid memory accumulation
+        if incremental and self._sink is not None:
+            # Re-initialize sink with incremental=True
+            from src.io.sink import PickleSink
+            self._sink = PickleSink(self._sink.path, incremental=True)
 
-        for i in tqdm(range(0, len(chunks), batch_size)):
-            batch = chunks[i:i+batch_size]
+            accumulated = []
+            batch_count = 0
 
-            vecs = self.model.get_embeddings(
-                texts=[c.text for c in batch],
-                **call_kwargs
-            )
+            for i in tqdm(range(0, len(chunks), batch_size)):
+                batch = chunks[i:i+batch_size]
 
-            if isinstance(vecs, np.ndarray):
-                vecs = vecs.tolist()
-
-            for chunk, vec in zip(batch, vecs):
-
-                embedding = ChunkEmbedding(
-                    doc_id=chunk.doc_id,
-                    chunk_id=chunk.chunk_id,
-                    vector=vec,
+                vecs = self.model.get_embeddings(
+                    texts=[c.text for c in batch],
+                    **call_kwargs
                 )
 
-                output.append(embedding)
+                if isinstance(vecs, np.ndarray):
+                    vecs = vecs.tolist()
 
-        if self._sink is not None:
-            self._sink.write_batch(output)
+                for chunk, vec in zip(batch, vecs):
+                    embedding = ChunkEmbedding(
+                        doc_id=chunk.doc_id,
+                        chunk_id=chunk.chunk_id,
+                        vector=vec,
+                    )
+                    accumulated.append(embedding)
 
-        return output
+                batch_count += 1
+
+                # Flush to temp file every N batches
+                if batch_count >= flush_every_n_batches:
+                    self._sink.write_batch(accumulated)
+                    accumulated = []
+                    batch_count = 0
+
+            # Flush any remaining embeddings
+            if accumulated:
+                self._sink.write_batch(accumulated)
+
+            # Merge all temp files into final output
+            self._sink.finalize()
+            return []
+
+        else:
+            # Original behavior for backward compatibility
+            output: List[ChunkEmbedding] = []
+
+            for i in tqdm(range(0, len(chunks), batch_size)):
+                batch = chunks[i:i+batch_size]
+
+                vecs = self.model.get_embeddings(
+                    texts=[c.text for c in batch],
+                    **call_kwargs
+                )
+
+                if isinstance(vecs, np.ndarray):
+                    vecs = vecs.tolist()
+
+                for chunk, vec in zip(batch, vecs):
+                    embedding = ChunkEmbedding(
+                        doc_id=chunk.doc_id,
+                        chunk_id=chunk.chunk_id,
+                        vector=vec,
+                    )
+                    output.append(embedding)
+
+            if self._sink is not None:
+                self._sink.write_batch(output)
+
+            return output
 
 
 if __name__ == '__main__':

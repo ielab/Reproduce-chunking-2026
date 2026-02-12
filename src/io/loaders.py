@@ -57,8 +57,32 @@ def load_queries_embeddings(path: str) -> List[QueryEmbedding]:
 
 
 def load_pkl_embeddings(path: str) -> List[QueryEmbedding|ChunkEmbedding]:
+    import os
+    import glob
 
-    with open(path, 'rb') as f:
-        loaded = pickle.load(f)
+    # Check if path is a directory of sharded batch files
+    if os.path.isdir(path):
+        batch_files = sorted(glob.glob(os.path.join(path, "batch_*.pkl")))
+        if not batch_files:
+            raise ValueError(f"No batch_*.pkl files found in {path}")
 
-    return loaded
+        all_embeddings = []
+        for batch_file in tqdm(batch_files, desc="Loading sharded embeddings"):
+            with open(batch_file, 'rb') as f:
+                batch = pickle.load(f)
+                all_embeddings.extend(batch)
+        return all_embeddings
+
+    # Original behavior: single pickle file (preferred if it exists)
+    if os.path.isfile(path):
+        with open(path, 'rb') as f:
+            loaded = pickle.load(f)
+        return loaded
+
+    # Fallback: check for sibling shards directory if .pkl doesn't exist
+    if path.endswith('.pkl'):
+        shards_dir = path.replace('.pkl', '_shards')
+        if os.path.isdir(shards_dir):
+            return load_pkl_embeddings(shards_dir)
+
+    raise FileNotFoundError(f"No embeddings found at {path}")

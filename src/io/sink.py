@@ -51,7 +51,7 @@ class JsonlSink:
 
 
 class PickleSink:
-    def __init__(self, path: str):
+    def __init__(self, path: str, incremental: bool = False):
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
 
         if path.endswith(".pkl"):
@@ -59,10 +59,48 @@ class PickleSink:
         else:
             raise ValueError(f"Unsupported file type: {path}")
 
-    def write_batch(self, objs: List[ChunkEmbedding|QueryEmbedding]):
+        self.incremental = incremental
+        self._batch_idx = 0
+        self._temp_dir = None
 
+        if self.incremental:
+            import tempfile
+            self._temp_dir = tempfile.mkdtemp(prefix="pickle_sink_")
+
+    def write_batch(self, objs: List[ChunkEmbedding|QueryEmbedding]):
+        if self.incremental:
+            # Write batch to temp file
+            temp_path = os.path.join(self._temp_dir, f"batch_{self._batch_idx:06d}.pkl")
+            with open(temp_path, "wb") as f:
+                pickle.dump(objs, f, protocol=pickle.HIGHEST_PROTOCOL)
+            self._batch_idx += 1
+        else:
+            # Original behavior: write all at once
+            with open(self.path, "wb") as f:
+                pickle.dump(objs, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def finalize(self):
+        """Merge all temp pickle files into final output and clean up."""
+        if not self.incremental or self._temp_dir is None:
+            return
+
+        import shutil
+
+        # Collect all batches
+        all_objs = []
+        for i in range(self._batch_idx):
+            temp_path = os.path.join(self._temp_dir, f"batch_{i:06d}.pkl")
+            with open(temp_path, "rb") as f:
+                batch = pickle.load(f)
+                all_objs.extend(batch)
+
+        # Write merged result
         with open(self.path, "wb") as f:
-            pickle.dump(objs, f, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(all_objs, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+        # Clean up temp directory
+        shutil.rmtree(self._temp_dir)
+        self._temp_dir = None
 
 
 

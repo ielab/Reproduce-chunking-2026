@@ -16,7 +16,7 @@ from src.evaluators import BaseEvaluator
 from src.io import *
 from src.io.sink import write_trec_file
 
-API_KEY = None
+API_KEY = os.environ.get("OPENAI_API_KEY") or os.environ.get("GEMINI_API_KEY")
 
 
 def _is_gutenqa_proposition_run(dataset_name: str, chunk_run_id: str) -> bool:
@@ -170,7 +170,7 @@ def cmd_encoder(args: argparse.Namespace):
             }
         }
 
-        if init_kwargs['backbone'] in ['openai']:
+        if init_kwargs['backbone'] in ['OpenAI']:
             if API_KEY is None:
                 raise ValueError(f"Backbone {args_dict['backbone']} API key is required")
             init_kwargs['backbone_kwargs']['api_key'] = API_KEY

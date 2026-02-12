@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Generate LaTeX table comparing RegularEncoder vs LateEncoder performance.
-Shows the difference (LateEncoder - RegularEncoder) for each combination.
+Generate LaTeX table comparing Pre-chunking (RegularEncoder) vs Contextualized-chunking (LateEncoder) performance.
+Shows the percentage difference (LateEncoder - RegularEncoder) for each combination.
+Includes paired t-test significance markers comparing Con-C vs Pre-C for the same chunker.
 """
 
 import os
@@ -9,11 +10,12 @@ import re
 from pathlib import Path
 from collections import defaultdict
 from typing import Dict, List, Tuple, Optional
+from scipy import stats
 
 
-def parse_eval_file(eval_path: str) -> Optional[float]:
+def parse_eval_file(eval_path: str) -> Tuple[Optional[float], Optional[Dict[str, float]]]:
     """
-    Parse an nDCG@10.eval file and extract the average score.
+    Parse an nDCG@10.eval file and extract the average score and per-query scores.
 
     Format expected:
     query_id_1 score_1
@@ -22,20 +24,54 @@ def parse_eval_file(eval_path: str) -> Optional[float]:
     average score_avg
 
     Returns:
-        The average score, or None if file doesn't exist or parsing fails
+        Tuple of (average score, dict of query_id -> score), or (None, None) if parsing fails
     """
     try:
         with open(eval_path, 'r') as f:
             lines = f.readlines()
-            for line in reversed(lines):  # Start from the end to find 'average' line
+            per_query_scores = {}
+            average_score = None
+            for line in lines:
                 line = line.strip()
-                if line.startswith('average'):
-                    parts = line.split()
-                    if len(parts) == 2:
-                        return float(parts[1])
-        return None
+                if not line:
+                    continue
+                parts = line.split()
+                if len(parts) == 2:
+                    query_id, score = parts
+                    if query_id == 'average':
+                        average_score = float(score)
+                    else:
+                        per_query_scores[query_id] = float(score)
+            return average_score, per_query_scores
     except (FileNotFoundError, ValueError, IOError):
-        return None
+        return None, None
+
+
+def paired_ttest(scores1: Dict[str, float], scores2: Dict[str, float], alpha: float = 0.05) -> Tuple[bool, float]:
+    """
+    Perform paired t-test between two sets of per-query scores.
+
+    Args:
+        scores1: Dict mapping query_id -> score for method 1
+        scores2: Dict mapping query_id -> score for method 2
+        alpha: Significance level (default 0.05)
+
+    Returns:
+        Tuple of (is_significant, p_value)
+    """
+    # Get common query ids
+    common_ids = set(scores1.keys()) & set(scores2.keys())
+    if len(common_ids) < 2:
+        return False, 1.0
+
+    # Extract paired scores
+    vals1 = [scores1[qid] for qid in sorted(common_ids)]
+    vals2 = [scores2[qid] for qid in sorted(common_ids)]
+
+    # Perform paired t-test
+    t_stat, p_value = stats.ttest_rel(vals1, vals2)
+
+    return p_value < alpha, p_value
 
 
 def get_model_display_name(model_name: str) -> str:
@@ -56,11 +92,11 @@ def get_chunker_display_name(chunker_name: str) -> str:
         'SentenceChunker': 'Sentence',
         'FixedSizeChunker': 'Fixed-Size',
         'FixedSizeChunker-256': 'Fixed-Size (256)',
-        'SemanticChunker': 'Semantic',
+        'SemanticChunker': 'Semantic (Jina-v2)',
         'LumberChunker': 'Lumber',
         'LumberChunker-GPT': 'Lumber (GPT)',
         'LumberChunker-Gemini': 'Lumber (Gemini)',
-        'Proposition': 'Proposition',
+        'Proposition-Gemini': 'Proposition (Gemini)',
     }
     return chunker_mapping.get(chunker_name, chunker_name)
 
@@ -82,7 +118,7 @@ def collect_results(
     models: List[str],
     chunkers: List[str],
     encoder: str
-) -> Dict[Tuple[str, str, str], float]:
+) -> Tuple[Dict[Tuple[str, str, str], float], Dict[Tuple[str, str, str], Dict[str, float]]]:
     """
     Collect all nDCG@10 or DCG@10 results from the output directory.
 
@@ -94,9 +130,12 @@ def collect_results(
         encoder: Encoder name (RegularEncoder or LateEncoder)
 
     Returns:
-        Dictionary mapping (model, chunker, dataset) -> nDCG@10 or DCG@10 score
+        Tuple of:
+        - Dictionary mapping (model, chunker, dataset) -> average score
+        - Dictionary mapping (model, chunker, dataset) -> per-query scores dict
     """
     results = {}
+    per_query_results = {}
 
     for dataset in datasets:
         for chunker in chunkers:
@@ -118,74 +157,42 @@ def collect_results(
                     metric_file
                 )
 
-                score = parse_eval_file(eval_path)
+                score, query_scores = parse_eval_file(eval_path)
                 if score is not None:
                     results[(model, chunker_dir_name, dataset)] = score
+                    per_query_results[(model, chunker_dir_name, dataset)] = query_scores
 
-    return results
+    return results, per_query_results
 
 
 def generate_comparison_table(
     regular_results: Dict[Tuple[str, str, str], float],
+    regular_per_query: Dict[Tuple[str, str, str], Dict[str, float]],
     late_results: Dict[Tuple[str, str, str], float],
+    late_per_query: Dict[Tuple[str, str, str], Dict[str, float]],
     datasets: List[str],
     models: List[str],
     chunkers: List[str],
     output_path: Optional[str] = None
 ) -> str:
     """
-    Generate LaTeX table comparing LateEncoder vs RegularEncoder (baseline).
+    Generate LaTeX table comparing LateEncoder (Con-C) vs RegularEncoder (Pre-C).
 
     Table shows percentage change relative to RegularEncoder.
-    Negative changes are shown as '---' (null).
+    Significance marker (*) added when paired t-test p < 0.05.
     """
-
-    # Find maximum percentage change for each dataset PER MODEL (to bold them)
-    max_pct_changes = {}  # key: (model, dataset), value: max_pct_change
-    for model in models:
-        for dataset in datasets:
-            pct_changes = []
-            for chunker in chunkers:
-                key = (model, chunker, dataset)
-                regular_score = regular_results.get(key)
-                late_score = late_results.get(key)
-                if regular_score is not None and late_score is not None and regular_score != 0:
-                    pct_change = ((late_score - regular_score) / regular_score) * 100
-                    pct_changes.append(pct_change)
-            if pct_changes:
-                max_pct_changes[(model, dataset)] = max(pct_changes)
-
-    # Find maximum average percentage change (corpus datasets) PER MODEL
-    max_avg_pct_changes = {}  # key: model, value: max_avg_pct_change
-    for model in models:
-        model_avg_changes = []
-        for chunker in chunkers:
-            corpus_pct_changes = []
-            for dataset in datasets:
-                if dataset == 'GutenQA':
-                    continue
-                key = (model, chunker, dataset)
-                regular_score = regular_results.get(key)
-                late_score = late_results.get(key)
-                if regular_score is not None and late_score is not None and regular_score != 0:
-                    pct_change = ((late_score - regular_score) / regular_score) * 100
-                    corpus_pct_changes.append(pct_change)
-            if corpus_pct_changes:
-                model_avg_changes.append(sum(corpus_pct_changes) / len(corpus_pct_changes))
-        if model_avg_changes:
-            max_avg_pct_changes[model] = max(model_avg_changes)
 
     # Start building the LaTeX table
     num_cols = len(datasets) + 2  # +1 for model/chunker column, +1 for average column
     col_spec = 'll' + 'c' * (len(datasets) + 1)
 
     latex_lines = []
-    latex_lines.append(r'\begin{table}[htbp]')
+    latex_lines.append(r'\begin{table*}[htbp]')
     latex_lines.append(r'\centering')
     # Define custom light green and light red colors for cell backgrounds
     latex_lines.append(r'\definecolor{lightgreen}{RGB}{220,255,220}')
     latex_lines.append(r'\definecolor{lightred}{RGB}{255,220,220}')
-    latex_lines.append(r'\caption{LateEncoder performance relative to RegularEncoder (baseline). Values show percentage change (light green=improvement, light red=degradation)}')
+    latex_lines.append(r'\caption{Contextualized-chunking (Con-C) performance relative to Pre-chunking (Pre-C) baseline. Values show percentage change. Green cells indicate improvement; red cells indicate degradation. $^*$ indicates statistically significant difference ($p < 0.05$, paired t-test).}')
     latex_lines.append(r'\label{tab:encoder_comparison}')
     latex_lines.append(r'\begin{tabular}{' + col_spec + r'}')
     latex_lines.append(r'\toprule')
@@ -197,9 +204,9 @@ def generate_comparison_table(
 
     task_row = [' & ']
     if doc_datasets:
-        task_row.append(r'\multicolumn{1}{c}{\textbf{\textit{document}}}')
+        task_row.append(r'\multicolumn{1}{c}{\textbf{\textit{Single-document}}}')
     if corpus_datasets:
-        task_row.append(r'\multicolumn{' + str(len(corpus_datasets) + 1) + r'}{c}{\textbf{\textit{corpus}}}')
+        task_row.append(r'\multicolumn{' + str(len(corpus_datasets) + 1) + r'}{c}{\textbf{\textit{Multi-documents}}}')
     latex_lines.append(' & '.join(task_row) + r' \\')
 
     # Add cmidrules under task row
@@ -253,24 +260,22 @@ def generate_comparison_table(
                         # Calculate percentage change: ((late - regular) / regular) * 100
                         pct_change = ((late_score - regular_score) / regular_score) * 100
 
-                        # Check if this is the maximum percentage change for this dataset WITHIN THIS MODEL
-                        max_key = (model, dataset)
-                        is_max = (max_key in max_pct_changes and
-                                 abs(pct_change - max_pct_changes[max_key]) < 1e-6 and
-                                 pct_change > 0)  # Only bold positive changes
+                        # Perform paired t-test between Con-C and Pre-C for this chunker
+                        is_significant = False
+                        if key in regular_per_query and key in late_per_query:
+                            is_significant, _ = paired_ttest(late_per_query[key], regular_per_query[key])
+
+                        sig_marker = '$^*$' if is_significant else ''
 
                         if pct_change > 0:
                             # Positive change - light green background
-                            if is_max:
-                                cell_content = f'\\cellcolor{{lightgreen}}\\textbf{{{pct_change:+.2f}}}'
-                            else:
-                                cell_content = f'\\cellcolor{{lightgreen}}{pct_change:+.2f}'
+                            cell_content = f'\\cellcolor{{lightgreen}}{pct_change:+.2f}{sig_marker}'
                         elif pct_change < 0:
                             # Negative change - light red background
-                            cell_content = f'\\cellcolor{{lightred}}{pct_change:.2f}'
+                            cell_content = f'\\cellcolor{{lightred}}{pct_change:.2f}{sig_marker}'
                         else:
                             # Zero change - no color
-                            cell_content = f'{pct_change:.2f}'
+                            cell_content = f'{pct_change:.2f}{sig_marker}'
                 else:
                     # Missing data
                     cell_content = '---'
@@ -284,16 +289,9 @@ def generate_comparison_table(
             # Add average percentage change over corpus datasets
             if corpus_pct_changes:
                 avg_pct_change = sum(corpus_pct_changes) / len(corpus_pct_changes)
-                max_avg = max_avg_pct_changes.get(model)
-                is_max_avg = (max_avg is not None and
-                              abs(avg_pct_change - max_avg) < 1e-6 and
-                              avg_pct_change > 0)
 
                 if avg_pct_change > 0:
-                    if is_max_avg:
-                        avg_cell = f'\\cellcolor{{lightgreen}}\\textbf{{{avg_pct_change:+.2f}}}'
-                    else:
-                        avg_cell = f'\\cellcolor{{lightgreen}}{avg_pct_change:+.2f}'
+                    avg_cell = f'\\cellcolor{{lightgreen}}{avg_pct_change:+.2f}'
                 elif avg_pct_change < 0:
                     avg_cell = f'\\cellcolor{{lightred}}{avg_pct_change:.2f}'
                 else:
@@ -305,7 +303,7 @@ def generate_comparison_table(
 
             latex_lines.append(' & '.join(row) + r' \\')
 
-        # Add midrule between models (except after the last model)
+        # Add per-model average row
         avg_row = ['& \\textbf{Avg}']
         corpus_avg_changes = []
         for dataset in datasets:
@@ -325,15 +323,8 @@ def generate_comparison_table(
 
         if corpus_avg_changes:
             overall_avg_change = sum(corpus_avg_changes) / len(corpus_avg_changes)
-            max_avg = max_avg_pct_changes.get(model)
-            is_max_avg = (max_avg is not None and
-                          abs(overall_avg_change - max_avg) < 1e-6 and
-                          overall_avg_change > 0)
             if overall_avg_change > 0:
-                if is_max_avg:
-                    avg_cell = f'\\cellcolor{{lightgreen}}\\textbf{{{overall_avg_change:+.2f}}}'
-                else:
-                    avg_cell = f'\\cellcolor{{lightgreen}}{overall_avg_change:+.2f}'
+                avg_cell = f'\\cellcolor{{lightgreen}}{overall_avg_change:+.2f}'
             elif overall_avg_change < 0:
                 avg_cell = f'\\cellcolor{{lightred}}{overall_avg_change:.2f}'
             else:
@@ -349,7 +340,7 @@ def generate_comparison_table(
 
     latex_lines.append(r'\bottomrule')
     latex_lines.append(r'\end{tabular}')
-    latex_lines.append(r'\end{table}')
+    latex_lines.append(r'\end{table*}')
 
     latex_table = '\n'.join(latex_lines)
 
@@ -392,6 +383,7 @@ def main():
         'ParagraphChunker',
         'SentenceChunker',
         'FixedSizeChunker-256',
+        'SemanticChunker',
         'LumberChunker-Gemini',
         'Proposition-Gemini',
     ]
@@ -399,12 +391,12 @@ def main():
     # Output path (relative to current working directory)
     OUTPUT_PATH = 'results_table_encoder_comparison.tex'
 
-    print("Collecting RegularEncoder results...")
-    regular_results = collect_results(BASE_PATH, DATASETS, MODELS, CHUNKERS, 'RegularEncoder')
+    print("Collecting RegularEncoder (Pre-C) results...")
+    regular_results, regular_per_query = collect_results(BASE_PATH, DATASETS, MODELS, CHUNKERS, 'RegularEncoder')
     print(f"Found {len(regular_results)} RegularEncoder result entries")
 
-    print("Collecting LateEncoder results...")
-    late_results = collect_results(BASE_PATH, DATASETS, MODELS, CHUNKERS, 'LateEncoder')
+    print("Collecting LateEncoder (Con-C) results...")
+    late_results, late_per_query = collect_results(BASE_PATH, DATASETS, MODELS, CHUNKERS, 'LateEncoder')
     print(f"Found {len(late_results)} LateEncoder result entries")
 
     print("Generating comparison table...")
@@ -417,10 +409,11 @@ def main():
         if reg_score and late_score:
             pct = ((late_score - reg_score) / reg_score) * 100
             print(f"  {model} / {chunker} / {dataset}:")
-            print(f"    Regular: {reg_score:.4f}, Late: {late_score:.4f}, Change: {pct:+.2f}%")
+            print(f"    Pre-C: {reg_score:.4f}, Con-C: {late_score:.4f}, Change: {pct:+.2f}%")
 
     latex_table = generate_comparison_table(
-        regular_results, late_results, DATASETS, MODELS, CHUNKERS, OUTPUT_PATH
+        regular_results, regular_per_query, late_results, late_per_query,
+        DATASETS, MODELS, CHUNKERS, OUTPUT_PATH
     )
 
     print("\nGenerated LaTeX table:")

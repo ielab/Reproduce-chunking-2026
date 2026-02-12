@@ -57,7 +57,7 @@ class BaseEmbeddingModel(ABC):
         with torch.no_grad():
 
             inputs = BatchEncoding(inputs).to(self.model.device)
-            outputs = self.model(**inputs)
+            outputs = self.model(**inputs, **kwargs)
 
         return outputs
 

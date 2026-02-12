@@ -26,6 +26,16 @@ class LateEncoder(BaseEncoder):
 
         super().__init__(backbone, embed_sink_path, backbone_kwargs)
 
+        # Validate that backbone supports token-level embeddings (required for late chunking)
+        INCOMPATIBLE_BACKBONES = ['OpenAI']
+        if backbone in INCOMPATIBLE_BACKBONES:
+            raise ValueError(
+                f"LateEncoder is not compatible with backbone '{backbone}' because "
+                f"it does not provide token-level embeddings required for late chunking.\n"
+                f"Please use RegularEncoder instead.\n"
+                f"Example: --encoder_name RegularEncoder --backbone {backbone}"
+            )
+
         #backbone_cls = EMD_BACKBONE_REG.get(backbone)
         self.backbone = backbone
 
@@ -195,7 +205,7 @@ class LateEncoder(BaseEncoder):
 
         return new_sliced_list
 
-    def long_late_encode_with_prefix(self, doc_texts: List[List[str]], prefix: str, batch_size: int):
+    def long_late_encode_with_prefix(self, doc_texts: List[List[str]], prefix: str, batch_size: int, model_kwargs: dict = None):
         """
         A streaming implementation to handle extremely long documents without loading the
         entire tokenized document into memory. It processes chunks sequentially.
@@ -289,21 +299,48 @@ class LateEncoder(BaseEncoder):
 
                 batch_inputs, lengths = self._pad_batch(padded_inputs, pad_token_id=self.tokenizer.pad_token_id)
 
+                # Build per-batch model kwargs (e.g., adapter_mask for Jina v3)
+                batch_model_kwargs = {}
+                if model_kwargs:
+                    for k, v in model_kwargs.items():
+                        if k == 'adapter_mask_value':
+                            # Expand scalar adapter ID to match batch size
+                            batch_model_kwargs['adapter_mask'] = torch.full(
+                                (len(sub_batch_windows),), v, dtype=torch.int32
+                            ).to(batch_inputs['input_ids'].device)
+                        else:
+                            batch_model_kwargs[k] = v
+
                 # Get embeddings
-                last_hidden_state = self.model.get_embeddings_for_inputs(inputs=batch_inputs).last_hidden_state
+                last_hidden_state = self.model.get_embeddings_for_inputs(inputs=batch_inputs, **batch_model_kwargs).last_hidden_state
 
                 # Unpad and store
+                n_prefix = len(prefix_special_token_ids)
                 for b_idx, L in enumerate(lengths):
-                    # Exclude CLS/prefix and SEP tokens from the final vector
-                    vector = last_hidden_state[b_idx, len(prefix_special_token_ids):L-1].detach().cpu()
+                    # Keep ALL token embeddings (including CLS/prefix and SEP)
+                    # so we can include them in the first/last chunk per the paper:
+                    # "include all embeddings of prepended tokens in the mean pooling
+                    #  of the first chunk and all appended tokens to the last chunk"
+                    vector = last_hidden_state[b_idx, :L].detach().cpu()
                     if vector.numel() > 0:
                         window_start_position = global_position
                         doc_vectors.append(vector)
 
                         # Update chunk spans for this window
-                        for chunk_idx, local_start, local_end in sub_batch_boundaries[b_idx]:
-                            global_start = window_start_position + local_start
-                            global_end = window_start_position + local_end
+                        window_boundaries = sub_batch_boundaries[b_idx]
+                        for bd_idx, (chunk_idx, local_start, local_end) in enumerate(window_boundaries):
+                            # Offset content positions by prefix length
+                            global_start = window_start_position + local_start + n_prefix
+                            global_end = window_start_position + local_end + n_prefix
+
+                            # First chunk in window: extend start to include CLS+prefix
+                            if bd_idx == 0:
+                                global_start = window_start_position
+
+                            # Last chunk in window: extend end to include SEP
+                            if bd_idx == len(window_boundaries) - 1:
+                                global_end = window_start_position + L
+
                             chunk_spans[chunk_idx] = (global_start, global_end)
 
                         global_position += vector.shape[0]
@@ -328,9 +365,13 @@ class LateEncoder(BaseEncoder):
         prefix = ""
 
         call_kwargs = {}
+        model_kwargs = {}
         if self.backbone == 'JinaaiV3':
             prefix = 'Represent the document for retrieval: '
             call_kwargs['task'] = 'retrieval.passage'
+            # Pass adapter task ID so long_late_encode_with_prefix activates the LoRA adapter
+            task_id = self.model.model._adaptation_map['retrieval.passage']
+            model_kwargs['adapter_mask_value'] = task_id
 
         elif self.backbone == 'Normic':
             prefix = 'search_document: '
@@ -358,7 +399,7 @@ class LateEncoder(BaseEncoder):
         # Get vectors AND actual chunk spans from the encoding process
         vectors: List[np.ndarray]
         doc_chunk_spans_list: List[List[Tuple]]
-        vectors, doc_chunk_spans_list = self.long_late_encode_with_prefix(doc_texts=doc_texts_list, prefix=prefix, batch_size=batch_size)
+        vectors, doc_chunk_spans_list = self.long_late_encode_with_prefix(doc_texts=doc_texts_list, prefix=prefix, batch_size=batch_size, model_kwargs=model_kwargs)
 
         output: List[ChunkEmbedding] = []
 
