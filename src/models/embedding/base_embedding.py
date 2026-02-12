@@ -57,6 +57,11 @@ class BaseEmbeddingModel(ABC):
         with torch.no_grad():
 
             inputs = BatchEncoding(inputs).to(self.model.device)
+            # Move any tensor kwargs (e.g., adapter_mask) to the same device
+            kwargs = {
+                k: v.to(self.model.device) if isinstance(v, torch.Tensor) else v
+                for k, v in kwargs.items()
+            }
             outputs = self.model(**inputs, **kwargs)
 
         return outputs
