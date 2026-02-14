@@ -32,10 +32,10 @@ def get_chunker_display_name(chunker_name: str) -> str:
     chunker_mapping = {
         'ParagraphChunker': 'Paragraph',
         'SentenceChunker': 'Sentence',
-        'FixedSizeChunker-256': 'Fixed-Size (256)',
+        'FixedSizeChunker-256': 'Fixed-size',
         'SemanticChunker': 'Semantic',
-        'LumberChunker-Gemini': 'Lumber (Gemini)',
-        'Proposition-Gemini': 'Proposition (Gemini)',
+        'LumberChunker-Gemini': 'LumberChunker',
+        'Proposition-Gemini': 'Proposition',
     }
     return chunker_mapping.get(chunker_name, chunker_name)
 

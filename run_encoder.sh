@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --time=2:00:00
+#SBATCH --time=24:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4
@@ -48,9 +48,9 @@ MODEL_NAME_CLEAN="${MODEL_NAME##*/}"
 
 # Set batch size based on encoder and model
 if [[ "$ENCODER" == "LateEncoder" ]]; then
-  BATCH_SIZE=12
+  BATCH_SIZE=128
 elif [[ "$MODEL_NAME" == "jinaai/jina-embeddings-v3" ]]; then
-  BATCH_SIZE=8
+  BATCH_SIZE=128
 else
   BATCH_SIZE=12
 fi

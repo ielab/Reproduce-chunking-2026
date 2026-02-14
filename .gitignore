@@ -15,3 +15,5 @@ run_encoder.sh
 /src/results
 /src/results
 /output_for_eval
+run_encoder.sh
+*.pdf

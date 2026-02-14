@@ -1,281 +1,222 @@
 # Reproduce-chunking-2026
-reproducibility paper of chunking method 2026 ecir 
 
-# Paper Additional Result:
+Reproducibility study of document chunking strategies for retrieval, as presented at ECIR 2026.
 
-Below is the additional result for Table 2 of the paper show in github due to page constraint;
+This repository provides a pipeline to **chunk**, **encode**, and **evaluate** documents using multiple chunking strategies and embedding models, reproducing and extending the results from the original paper.
 
-| Dataset | Method | Pre-C Orig (Jina-v3) | Pre-C Repro (Jina-v3) | Con-C Orig (Jina-v3) | Con-C Repro (Jina-v3) | Pre-C Orig (Nomic) | Pre-C Repro (Nomic) | Con-C Orig (Nomic) | Con-C Repro (Nomic) |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| SciFact | Fixed-size | 0.718 | 0.717 | 0.732 | 0.730 | 0.707 | 0.703 | 0.706 | 0.707 |
-| | Sentence | 0.714 | 0.716 | 0.732 | 0.734 | 0.713 | 0.715 | 0.714 | 0.712 |
-| | Semantic | 0.712 | 0.710 | 0.724 | 0.723 | 0.704 | 0.704 | 0.705 | 0.705 |
-| NFCorpus | Fixed-size | 0.356 | 0.355 | 0.367 | 0.368 | 0.353 | 0.348 | 0.353 | 0.351 |
-| | Sentence | 0.358 | 0.357 | 0.366 | 0.367 | 0.347 | 0.350 | 0.355 | 0.355 |
-| | Semantic | 0.361 | 0.360 | 0.366 | 0.367 | 0.353 | 0.351 | 0.303 | 0.353 |
-| FiQA | Fixed-size | 0.333 | 0.468 | 0.338 | 0.479 | 0.370 | 0.386 | 0.383 | 0.387 |
-| | Sentence | 0.304 | 0.433 | 0.339 | 0.480 | 0.351 | 0.362 | 0.377 | 0.380 |
-| | Semantic | 0.303 | 0.440 | 0.337 | 0.322 | 0.348 | 0.356 | 0.369 | 0.266 |
-| TRECCOVID | Fixed-size | 0.730 | 0.739 | 0.772 | 0.766 | 0.729 | 0.758 | 0.750 | 0.750 |
-| | Sentence | 0.724 | 0.714 | 0.765 | 0.769 | 0.742 | 0.747 | 0.768 | 0.779 |
-| | Semantic | 0.747 | 0.747 | 0.762 | 0.699 | 0.743 | 0.743 | 0.761 | 0.730 |
+## Table of Contents
 
-Next, for investigating RQ4, the impact of chunk size; we have also included the coorlation with respect to other three models tested in the paper:
+- [Additional Results](#additional-results)
+- [Datasets](#datasets)
+- [Installation](#installation)
+- [Project Overview](#project-overview)
+- [Quick Start](#quick-start)
+- [Module Details](#module-details)
+  - [Chunker](#chunker)
+  - [Encoder](#encoder)
+  - [Evaluator](#evaluator)
 
+---
 
+## Additional Results
 
+Results that could not fit in the paper due to page constraints are provided below.
 
-# 📚 Dataset
+### Table 2 (Extended): Pre-Chunking vs Contextualized Chunking (Jina-v3 and Nomic)
 
-This project uses the following datasets for chunking and embedding task:
+| Dataset   | Method     | Pre-C Orig (Jina-v3) | Pre-C Repro (Jina-v3) | Con-C Orig (Jina-v3) | Con-C Repro (Jina-v3) | Pre-C Orig (Nomic) | Pre-C Repro (Nomic) | Con-C Orig (Nomic) | Con-C Repro (Nomic) |
+| ---       | ---        | ---                  | ---                   | ---                  | ---                   | ---                | ---                 | ---                | ---                 |
+| SciFact   | Fixed-size | 0.718                | 0.717                 | 0.732                | 0.730                 | 0.707              | 0.703               | 0.706              | 0.707               |
+|           | Sentence   | 0.714                | 0.716                 | 0.732                | 0.734                 | 0.713              | 0.715               | 0.714              | 0.712               |
+|           | Semantic   | 0.712                | 0.710                 | 0.724                | 0.723                 | 0.704              | 0.704               | 0.705              | 0.705               |
+| NFCorpus  | Fixed-size | 0.356                | 0.355                 | 0.367                | 0.368                 | 0.353              | 0.348               | 0.353              | 0.351               |
+|           | Sentence   | 0.358                | 0.357                 | 0.366                | 0.367                 | 0.347              | 0.350               | 0.355              | 0.355               |
+|           | Semantic   | 0.361                | 0.360                 | 0.366                | 0.367                 | 0.353              | 0.351               | 0.303              | 0.353               |
+| FiQA      | Fixed-size | 0.333                | 0.468                 | 0.338                | 0.479                 | 0.370              | 0.386               | 0.383              | 0.387               |
+|           | Sentence   | 0.304                | 0.433                 | 0.339                | 0.480                 | 0.351              | 0.362               | 0.377              | 0.380               |
+|           | Semantic   | 0.303                | 0.440                 | 0.337                | 0.322                 | 0.348              | 0.356               | 0.369              | 0.266               |
+| TRECCOVID | Fixed-size | 0.730                | 0.739                 | 0.772                | 0.766                 | 0.729              | 0.758               | 0.750              | 0.750               |
+|           | Sentence   | 0.724                | 0.714                 | 0.765                | 0.769                 | 0.742              | 0.747               | 0.768              | 0.779               |
+|           | Semantic   | 0.747                | 0.747                 | 0.762                | 0.699                 | 0.743              | 0.743               | 0.761              | 0.730               |
 
-- **Narrative Dataset (GutenQA):** [GutenQA_Paragraphs](https://huggingface.co/datasets/LumberChunker/GutenQA_Paragraphs) 
-- **BEIR Dataset:** [beir](https://github.com/beir-cellar/beir)
-  - trec-covid
-  - nfcorpus
-  - fiqa
-  - arguana
-  - scidocs
-  - scifact
+### RQ4: Impact of Chunk Size
 
+Correlation between chunk size and retrieval performance for all four models:
 
-### 🔽 Download Instructions
+<details>
+<summary>Jina-v2 (jina-embeddings-v2-small-en)</summary>
 
-Download the datasets and place them in the folder `src/data/`.  
-- For **GutenQA**, create a subfolder named `GutenQA`.  
-- For **BEIR**, unzip the dataset into the same directory.  
+![Jina-v2](figures/rq4_chunkcount_vs_performance_jina-embeddings-v2-small-en.png)
+</details>
 
-# Installation
+<details>
+<summary>Jina-v3 (jina-embeddings-v3)</summary>
 
-Install dependencies with:
+![Jina-v3](figures/rq4_chunkcount_vs_performance_jina-embeddings-v3.png)
+</details>
+
+<details>
+<summary>Nomic (nomic-embed-text-v1)</summary>
+
+![Nomic](figures/rq4_chunkcount_vs_performance_nomic-embed-text-v1.png)
+</details>
+
+<details>
+<summary>E5-Large (multilingual-e5-large-instruct)</summary>
+
+![E5-Large](figures/rq4_chunkcount_vs_performance_multilingual-e5-large-instruct.png)
+</details>
+
+---
+
+## Datasets
+
+This project evaluates on two dataset groups:
+
+- **Narrative (in-document retrieval):** [GutenQA_Paragraphs](https://huggingface.co/datasets/LumberChunker/GutenQA_Paragraphs)
+- **BEIR (in-corpus retrieval):** [beir](https://github.com/beir-cellar/beir)
+  - trec-covid, nfcorpus, fiqa, arguana, scidocs, scifact
+
+### Download
+
+1. Download the datasets and place them under `src/data/`.
+2. For **GutenQA**, create a subfolder `src/data/GutenQA`.
+3. For **BEIR**, unzip each dataset into `src/data/` (e.g. `src/data/nfcorpus/`).
+
+---
+
+## Installation
+
 ```bash
 pip install -r requirements.txt
 ```
 
+---
 
-# Project Guide
+## Project Overview
 
-This repository provides three core modules for document processing and evaluation:  
-- **Chunker**: Splits documents into manageable pieces.  
-- **Encoder**: Transforms chunks into embeddings.  
-- **Evaluator**: Benchmarks chunking and encoding strategies.  
+The repository is organized into three core modules:
 
-You can run each module individually or together using the provided shell scripts.  
+| Module        | Description                                                       |
+| ---           | ---                                                               |
+| **Chunker**   | Splits documents into chunks using various strategies             |
+| **Encoder**   | Transforms chunks into embeddings (Regular or Late/Contextualized)|
+| **Evaluator** | Computes ranking metrics (nDCG, DCG, Recall) for evaluation       |
+
+### Supported Chunking Strategies
+
+| Category         | Methods                                        |
+| ---              | ---                                            |
+| Structure-based  | ParagraphChunker, SentenceChunker, FixedSizeChunker |
+| Semantic/LLM     | SemanticChunker, LumberChunker, Proposition    |
+
+### Supported Embedding Models
+
+| Model                              | Short Name |
+| ---                                | ---        |
+| jinaai/jina-embeddings-v2-small-en | Jina-v2    |
+| jinaai/jina-embeddings-v3          | Jina-v3    |
+| nomic-ai/nomic-embed-text-v1       | Nomic      |
+| intfloat/multilingual-e5-large-instruct | E5-Large |
 
 ---
 
-# ▶️ Quick Start
+## Quick Start
 
-Run all modules from the command line using the provided scripts. Logs are automatically redirected.
-
-
-#### Chunker
+Run all modules end-to-end using the provided shell scripts:
 
 ```bash
+# Step 1: Chunk documents
 nohup ./run_chunker.sh > run_chunker.log 2>&1 < /dev/null &
-```
 
-#### Encoder
-
-⚠️ **Important:**
-Before running, update `QUERY_ID_BY_DATASET.` This ID is generated in the Chunker module, and each dataset corresponds to a unique query ID.
-
-```bash
+# Step 2: Encode chunks and queries
 nohup ./run_encoder.sh > run_encoder.log 2>&1 < /dev/null &
-```
 
-#### Evaluator
-
-⚠️ **Note:**
-Most parameters in the Evaluator depend on the outputs from the Encoder.
-Please verify encoder run IDs and configurations before execution.
-
-```bash
+# Step 3: Evaluate retrieval performance
 nohup ./run_evaluator.sh > run_evaluator.log 2>&1 < /dev/null &
 ```
 
-
-
-
-[//]: # (#  Code structure)
-
-[//]: # ()
-[//]: # (The codebase is organized into four core modules:)
-
-[//]: # ()
-[//]: # (---)
-
-[//]: # ()
-[//]: # (### 1. Processor)
-
-[//]: # ()
-[//]: # (The **Processor** handles dataset loading and outputs a standardized `Document` format: )
-
-[//]: # (```python)
-
-[//]: # (Document&#40;doc_id='', text='', metadata=''&#41;)
-
-[//]: # (```)
-
-[//]: # ()
-[//]: # (- Currently supports **GutenQA** and **BEIR** datasets.)
-
-[//]: # (- To add new datasets, implement a custom processor class inheriting from the base processor, and **register it** in the `processors/__init__.py`.)
-
-[//]: # ()
-[//]: # ()
-[//]: # (### 2. Chunker)
-
-[//]: # ()
-[//]: # (  The Chunker splits documents/passages into smaller chunks for downstream encoding and retrieval.)
-
-[//]: # (Available methods include:)
-
-[//]: # (- FixedSizeChunker)
-
-[//]: # (- ParagraphChunker)
-
-[//]: # (- SemanticChunker)
-
-[//]: # (- SentenceChunker)
-
-[//]: # (- LumberChunker)
-
-[//]: # (- Proposition)
-
-[//]: # ()
-[//]: # ()
-[//]: # (### 3. Encoder)
-
-[//]: # ()
-[//]: # (The Encoder transforms chunks into vector embeddings. Two strategies are supported:)
-
-[//]: # (- **RegularEncoder**: Encodes chunks individually.)
-
-[//]: # (- **LateEncoder**: Concatenates chunks, encodes them jointly, and splits embeddings afterward.)
-
-[//]: # ()
-[//]: # (You can choose from different embedding models, such as:)
-
-[//]: # ()
-[//]: # (- `jinaai/jina-embeddings-v2-small-en`)
-
-[//]: # (- `Qwen/Qwen3-Embedding-0.6B`)
-
-[//]: # ()
-[//]: # ()
-[//]: # (Custom encoders can be added by creating a class under `src/encoders` &#40;inheriting from `BaseEncoder`&#41;.)
-
-[//]: # (Similarly, custom embedding models can be added under `src/models/embedding` &#40;inheriting from `BaseEmbeddingModel`&#41;.)
-
-[//]: # ()
-[//]: # (### 4. Evaluator)
-
-[//]: # ()
-[//]: # (The Evaluator computes ranking-based metrics &#40;nDCG, Recall&#41; to measure the performance of different chunking strategies and encoder configurations)
-
-[//]: # ()
-[//]: # ()
-[//]: # (# How to run)
-
-[//]: # ()
-[//]: # (We can run these modules separately with command line, for more details please look other sections below. Here, we provide a shell to run all the parameters.)
-
-
-
-
-
-# ✂️ Chunker
-
-The **Chunker** module splits documents/passages into smaller units for efficient encoding and retrieval.
-It supports multiple strategies, including those from [LumberChunker](https://arxiv.org/abs/2406.17526) and [Late Chunking](https://arxiv.org/abs/2409.04701)
+> **Note:** Each step depends on the outputs of the previous one. Before running the Encoder, update `QUERY_ID_BY_DATASET` in `run_encoder.sh` with the query IDs generated by the Chunker. Similarly, verify encoder run IDs before running the Evaluator.
 
 ---
 
-## 🚀 Run Example
+## Module Details
 
-Run the **ParagraphChunker** on the nfcorpus dataset:
+### Chunker
+
+Splits documents into smaller units for encoding and retrieval. Supports strategies from [LumberChunker](https://arxiv.org/abs/2406.17526) and [Late Chunking](https://arxiv.org/abs/2409.04701).
+
+**Example:**
 
 ```bash
 python -m src.runner chunker \
---processor_name beir \
---dataset_name nfcorpus \
---data_folder src/data \
---sample 10 \
---chunker ParagraphChunker \
---output_folder src/outputs \
---query
+  --processor_name beir \
+  --dataset_name nfcorpus \
+  --data_folder src/data \
+  --chunker ParagraphChunker \
+  --output_folder src/outputs \
+  --query
 ```
 
-## ⚙️ Key Arguments
+**Arguments:**
 
-- `--processor`: Data processor (e.g., `GutenQA`, `beir`).
+| Argument           | Description                                              |
+| ---                | ---                                                      |
+| `--processor_name` | Data processor (`GutenQA`, `beir`)                       |
+| `--dataset_name`   | Dataset to process                                       |
+| `--data_folder`    | Path to dataset folder                                   |
+| `--chunker`        | Chunking strategy (e.g. `ParagraphChunker`, `SentenceChunker`) |
+| `--output_folder`  | Output directory for chunks                              |
+| `--query`          | Enable query mode (saves queries alongside chunks)       |
+| `--sample`         | Optional: number of documents to sample                  |
 
-- `--dataset_name`: Dataset for processing.
+---
 
-- `--data_folder`: Dataset folder.
+### Encoder
 
-- `--chunker`: Chunking strategy (e.g., `ParagraphChunker`, `LumberChunker`).
+Transforms text chunks into vector embeddings. Two encoding strategies are supported:
 
-- `--output`: Output directory for processed data.
+- **RegularEncoder**: Encodes each chunk independently.
+- **LateEncoder**: Concatenates chunks from the same document, encodes jointly, then splits embeddings back (contextualized chunking).
 
-- `--query`: Enables query mode, which first runs the chunker and then saves the queries.
-
-
-
-# 🪄 Encoder
-
-The **Encoder** module transforms text chunks generated by the Chunker into vector embeddings.
-
--------------------------------
-
-## 🚀 Run Example
-
-Run the **RegularEncoder** with backbone `jinaiV2` and embedding model `jinaai/jina-embeddings-v2-small-en`:  
+**Example:**
 
 ```bash
 python -m src.runner encoder \
---encoder_name RegularEncoder \
---dataset_name nfcorpus \
---chunk_run_id SentenceChunker \
---backbone JinaaiV2 \
---model_name jinaai/jina-embeddings-v2-small-en \
---batch_size 10 \
---output_folder src/test_outputs \
---query \
---query_run_id 20250921-183217-beir-8f3497a6
+  --encoder_name RegularEncoder \
+  --dataset_name nfcorpus \
+  --chunk_run_id SentenceChunker \
+  --backbone JinaaiV2 \
+  --model_name jinaai/jina-embeddings-v2-small-en \
+  --batch_size 10 \
+  --output_folder src/outputs \
+  --query \
+  --query_run_id 20250921-183217-beir-8f3497a6
 ```
 
-## ⚙️ Arguments
+**Arguments:**
 
-- `--encoder_name`: Encoder class (e.g., `RegularEncoder`, `LateEncoder`).
-- `--dataset_name`: Dataset name (e.g., `nfcorpus`, `fiqa`)
-- `--chunk_run_id`: The ID of the chunking run whose outputs will be encoded.
-- `--backbone`: Embedding backbone (e.g., `openai`, `Qwen3`).  
-- `--model_name`: The embedding model to use (e.g., `text-embedding-ada-002`, `Qwen/Qwen3-Embedding-0.6B`).
-- `--batch_size`: Number of texts processed per batch.
-- `--output`: Output directory where embeddings will be stored. default: `src/outputs`  
-- `--query`: Enables query encoding mode.  which first runs the encoder and then saves the query embeddings.
-- `--query_run_id`: The ID of the query run to be encoded. 
+| Argument              | Description                                              |
+| ---                   | ---                                                      |
+| `--encoder_name`      | Encoder class (`RegularEncoder`, `LateEncoder`)          |
+| `--dataset_name`      | Dataset name                                             |
+| `--chunk_run_id`      | ID of the chunking run to encode                         |
+| `--backbone`          | Embedding backbone (e.g. `JinaaiV2`, `JinaaiV3`)        |
+| `--model_name`        | HuggingFace model ID                                     |
+| `--batch_size`        | Texts per batch                                          |
+| `--output_folder`     | Output directory (default: `src/outputs`)                |
+| `--query`             | Enable query encoding mode                               |
+| `--query_run_id`      | ID of the query run to encode                            |
 
-If you want to customize the encoder, you can define your own **Encoder class** under `src/encoder`, 
-inheriting from the base class **BaseEncoder**.
+To add a custom encoder, create a class under `src/encoders/` inheriting from `BaseEncoder`. For custom embedding models, add a class under `src/models/embedding/` inheriting from `BaseEmbeddingModel`.
 
-If you want to use another embedding model, you can define a custom **embedding model** under `src/models/embeddings`,
-inheriting from the base class **BaseEmbeddingModel**.
+---
 
+### Evaluator
 
-# 📊 Evaluator
+Computes ranking-based metrics (nDCG, DCG, Recall) to benchmark chunking and encoding configurations.
 
-The **Evaluator** module is to measure the performance of different **chunking strategies** and **encoder configurations**.  
-It computes ranking-based metrics such as **DCG** and **Recall**, 
-allowing you to compare how well various combinations perform in retrieval tasks.  
-
----------
-
-## 🚀 Run Example
-
-Run the evaluator with a given chunking run, query run, and their corresponding embeddings:
+**Example:**
 
 ```bash
 python -m src.runner eval \
@@ -283,19 +224,19 @@ python -m src.runner eval \
   --query_run_id 20250902-171849-GutenQA-ed7846b6 \
   --chunk_embedding_run_id 20250902-175213-RegularEncoder-Qwen3-Qwen3-Embedding-0.6B-77072742 \
   --query_embedding_run_id 20250902-175652-RegularEncoder-Qwen3-13d17bce \
-  --dataset_name QutenQA \
+  --dataset_name GutenQA \
   --scope document \
-  --source_path src/test_outputs
+  --source_path src/outputs
 ```
 
-## ⚙️ Arguments
+**Arguments:**
 
-- `--chunk_run_id`: The ID of the chunking run.
-- `--query_run_id`: The ID of the query run.  
-- `--chunk_embedding_run_id`: The ID of the chunk embedding run.  
-- `--query_embedding_run_id`: The ID of the query embedding run.  
-- `--dataset_name`: The dataset used for evaluation (e.g., `QutenQA`).  
-- `--scope`: The evaluation scope:
-  - `document` -> query retrieval within one document.
-  - `corpus` -> query retrieval across the full corpus.
-- `--source_path`: Path to the evaluation source data.  default is `src/outputs`
+| Argument                   | Description                                         |
+| ---                        | ---                                                 |
+| `--chunk_run_id`           | ID of the chunking run                              |
+| `--query_run_id`           | ID of the query run                                 |
+| `--chunk_embedding_run_id` | ID of the chunk embedding run                       |
+| `--query_embedding_run_id` | ID of the query embedding run                       |
+| `--dataset_name`           | Dataset used for evaluation                         |
+| `--scope`                  | `document` (within-document) or `corpus` (full corpus) |
+| `--source_path`            | Path to outputs (default: `src/outputs`)            |

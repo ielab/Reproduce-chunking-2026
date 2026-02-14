@@ -8,13 +8,100 @@ Legend with colored dots for chunking methods shown once.
 """
 
 import os
+import json
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import pearsonr
+from transformers import AutoTokenizer
 
-from chunk_size_cache import get_chunk_sizes
+
+# ── Tokenizer infrastructure ─────────────────────────────────────────────────
+
+MODEL_HF_ID = {
+    'jina-embeddings-v3': 'jinaai/jina-embeddings-v3',
+    'multilingual-e5-large-instruct': 'intfloat/multilingual-e5-large-instruct',
+}
+
+CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.chunk_token_cache')
+BATCH_SIZE = 4096
+
+_tokenizers: Dict[str, object] = {}
+
+
+def _get_tokenizer(model: str):
+    """Load and cache a fast (Rust-backed) tokenizer."""
+    if model not in _tokenizers:
+        hf_id = MODEL_HF_ID.get(model, model)
+        print(f"  Loading tokenizer for {hf_id}...")
+        _tokenizers[model] = AutoTokenizer.from_pretrained(
+            hf_id, trust_remote_code=True, use_fast=True)
+    return _tokenizers[model]
+
+
+def get_avg_chunk_tokens(base_path: str, datasets: List[str], chunkers: List[str],
+                         model: str, fallback_sizes: Dict[str, float]) -> Dict[str, float]:
+    """
+    Get average chunk size in tokens for each chunker, averaged across all datasets.
+    Uses disk cache to avoid re-tokenizing.
+    """
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    cache_key = f"avg_chunker_tokens_{model.replace('/', '_')}"
+    cache_path = os.path.join(CACHE_DIR, f"{cache_key}.json")
+
+    # Check cache
+    if os.path.exists(cache_path):
+        with open(cache_path) as f:
+            cached = json.load(f)
+        if all(c in cached for c in chunkers):
+            print(f"Loading avg chunk tokens from cache for {model}...")
+            for c in chunkers:
+                val = cached[c]
+                print(f"  {c}: {val:.0f} tokens (cached)" if val else f"  {c}: using fallback")
+            return {c: cached[c] or fallback_sizes.get(c, 75) for c in chunkers}
+
+    tokenizer = _get_tokenizer(model)
+    result = {}
+
+    for chunker in chunkers:
+        all_texts = []
+        for dataset in datasets:
+            chunks_path = Path(base_path) / dataset / 'chunks' / chunker / 'chunks.jsonl'
+            if not chunks_path.exists():
+                continue
+            with open(chunks_path) as f:
+                for line in f:
+                    try:
+                        d = json.loads(line.strip())
+                        text = d.get('text', '')
+                        if text:
+                            all_texts.append(text)
+                    except (json.JSONDecodeError, KeyError):
+                        pass
+
+        if not all_texts:
+            result[chunker] = None
+            continue
+
+        print(f"  Tokenizing {len(all_texts)} chunks for {chunker} with {model}...")
+        total_tokens = 0
+        for i in range(0, len(all_texts), BATCH_SIZE):
+            batch = all_texts[i:i + BATCH_SIZE]
+            encoded = tokenizer(batch, add_special_tokens=False,
+                                return_attention_mask=False,
+                                return_token_type_ids=False)
+            total_tokens += sum(len(ids) for ids in encoded['input_ids'])
+
+        result[chunker] = total_tokens / len(all_texts)
+        print(f"    {chunker}: {result[chunker]:.0f} tokens")
+
+    # Save cache
+    with open(cache_path, 'w') as f:
+        json.dump(result, f, indent=2)
+    print(f"  Cached to {cache_path}")
+
+    return {c: result[c] or fallback_sizes.get(c, 75) for c in chunkers}
 
 
 def parse_eval_file(eval_path: str) -> Optional[float]:
@@ -123,13 +210,13 @@ def main():
         'Proposition-Gemini',
     ]
 
-    FALLBACK_CHUNK_SIZES = {
-        'ParagraphChunker': 800,
-        'SentenceChunker': 150,
-        'FixedSizeChunker-256': 256,
-        'SemanticChunker': 400,
-        'LumberChunker-Gemini': 600,
-        'Proposition-Gemini': 100,
+    FALLBACK_CHUNK_TOKENS = {
+        'ParagraphChunker': 200,
+        'SentenceChunker': 40,
+        'FixedSizeChunker-256': 64,
+        'SemanticChunker': 100,
+        'LumberChunker-Gemini': 150,
+        'Proposition-Gemini': 25,
     }
 
     # Collect all scores
@@ -139,7 +226,11 @@ def main():
     beir_prec = collect_beir_average(BASE_PATH, DATASETS, MODELS, CHUNKERS, 'RegularEncoder')
     beir_conc = collect_beir_average(BASE_PATH, DATASETS, MODELS, CHUNKERS, 'LateEncoder')
 
-    chunk_sizes = get_chunk_sizes(BASE_PATH, DATASETS, CHUNKERS, FALLBACK_CHUNK_SIZES)
+    # Compute avg chunk size in tokens, per model
+    chunk_sizes = {}
+    for model in MODELS:
+        chunk_sizes[model] = get_avg_chunk_tokens(
+            BASE_PATH, DATASETS, CHUNKERS, model, FALLBACK_CHUNK_TOKENS)
 
     # Calculate improvements
     def calc_improvement(prec_scores, conc_scores):
@@ -176,9 +267,9 @@ def main():
 
     # Y-axis limits per row
     y_limits = {
-        0: {'GutenQA': (0, 1.0), 'BEIR': (0.25, 0.55)},    # Pre-C
-        1: {'GutenQA': (0, 1.0), 'BEIR': (0.25, 0.55)},    # Con-C
-        2: {'GutenQA': (-70, 20), 'BEIR': (-7, 30)},        # Improvement
+        0: {'GutenQA': (0.2, 0.6), 'BEIR': (0.35, 0.6)},    # Pre-C
+        1: {'GutenQA': (0.2, 0.6), 'BEIR': (0.35, 0.6)},    # Con-C
+        2: {'GutenQA': (-45, 25), 'BEIR': (-10, 30)},        # Improvement
     }
 
     # Y-axis labels
@@ -216,7 +307,7 @@ def main():
             for chunker in CHUNKERS:
                 key = (model, chunker)
                 if key in scores:
-                    x_vals.append(chunk_sizes[chunker])
+                    x_vals.append(chunk_sizes[model][chunker])
                     y_vals.append(scores[key])
                     point_colors.append(chunker_colors[chunker])
 
@@ -271,7 +362,7 @@ def main():
 
             # X-axis label only on bottom-right corner
             if row_idx == 2 and col_idx == 3:
-                ax.set_xlabel('Avg Chunk Size (chars)', fontsize=18)
+                ax.set_xlabel('Avg Chunk Size (tokens)', fontsize=18)
 
     # Add task group labels at the top
     # Center over cols 0-1 and cols 3-4 of the gridspec

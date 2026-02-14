@@ -42,8 +42,8 @@ def get_chunker_display_name(chunker_name: str) -> str:
     """Convert chunker names to display names."""
     chunker_mapping = {
         'SentenceChunker': 'Sentence',
-        'FixedSizeChunker-256': 'Fixed-Size (256)',
-        'SemanticChunker': 'Semantic (Jina-v2)',
+        'FixedSizeChunker-256': 'Fixed-size',
+        'SemanticChunker': 'Semantic',
     }
     return chunker_mapping.get(chunker_name, chunker_name)
 
