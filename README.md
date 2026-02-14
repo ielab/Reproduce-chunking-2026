@@ -95,6 +95,8 @@ pip install -r requirements.txt
 
 ## Project Overview
 
+![Chunking-Embedding Pipeline](figures/chunking-embedding-pipeline.png)
+
 The repository is organized into three core modules:
 
 | Module        | Description                                                       |
