@@ -1,6 +1,29 @@
 # Reproduce-chunking-2026
 reproducibility paper of chunking method 2026 ecir 
 
+# Paper Additional Result:
+
+Below is the additional result for Table 2 of the paper show in github due to page constraint;
+
+| Dataset | Method | Pre-C Orig (Jina-v3) | Pre-C Repro (Jina-v3) | Con-C Orig (Jina-v3) | Con-C Repro (Jina-v3) | Pre-C Orig (Nomic) | Pre-C Repro (Nomic) | Con-C Orig (Nomic) | Con-C Repro (Nomic) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| SciFact | Fixed-size | 0.718 | 0.717 | 0.732 | 0.730 | 0.707 | 0.703 | 0.706 | 0.707 |
+| | Sentence | 0.714 | 0.716 | 0.732 | 0.734 | 0.713 | 0.715 | 0.714 | 0.712 |
+| | Semantic | 0.712 | 0.710 | 0.724 | 0.723 | 0.704 | 0.704 | 0.705 | 0.705 |
+| NFCorpus | Fixed-size | 0.356 | 0.355 | 0.367 | 0.368 | 0.353 | 0.348 | 0.353 | 0.351 |
+| | Sentence | 0.358 | 0.357 | 0.366 | 0.367 | 0.347 | 0.350 | 0.355 | 0.355 |
+| | Semantic | 0.361 | 0.360 | 0.366 | 0.367 | 0.353 | 0.351 | 0.303 | 0.353 |
+| FiQA | Fixed-size | 0.333 | 0.468 | 0.338 | 0.479 | 0.370 | 0.386 | 0.383 | 0.387 |
+| | Sentence | 0.304 | 0.433 | 0.339 | 0.480 | 0.351 | 0.362 | 0.377 | 0.380 |
+| | Semantic | 0.303 | 0.440 | 0.337 | 0.322 | 0.348 | 0.356 | 0.369 | 0.266 |
+| TRECCOVID | Fixed-size | 0.730 | 0.739 | 0.772 | 0.766 | 0.729 | 0.758 | 0.750 | 0.750 |
+| | Sentence | 0.724 | 0.714 | 0.765 | 0.769 | 0.742 | 0.747 | 0.768 | 0.779 |
+| | Semantic | 0.747 | 0.747 | 0.762 | 0.699 | 0.743 | 0.743 | 0.761 | 0.730 |
+
+Next, for investigating RQ4, the impact of chunk size; we have also included the coorlation with respect to other three models tested in the paper:
+
+
+
 
 # 📚 Dataset
 
