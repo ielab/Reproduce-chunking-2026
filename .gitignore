@@ -17,3 +17,4 @@ run_encoder.sh
 /output_for_eval
 run_encoder.sh
 *.pdf
+*.sh
