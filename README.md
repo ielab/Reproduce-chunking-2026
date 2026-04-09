@@ -1,6 +1,6 @@
 # Reproduce-chunking-2026
 
-Reproducibility study of document chunking strategies for retrieval, as presented at ECIR 2026.
+Reproducibility study of document chunking strategies for retrieval, accepted in SIGIR2026
 
 This repository provides a pipeline to **chunk**, **encode**, and **evaluate** documents using multiple chunking strategies and embedding models, reproducing and extending the results from the original paper.
 
